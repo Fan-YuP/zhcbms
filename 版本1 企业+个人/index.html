@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>贷款综合融资成本公示系统</title>
+<script src="lib/html2canvas.min.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #f0f2f5; color: #333; padding: 20px; }
+.container { max-width: 1200px; margin: 0 auto; }
+h1 { text-align: center; color: #1a5490; margin-bottom: 20px; font-size: 24px; }
+.tab-nav { display: flex; justify-content: center; margin-bottom: 25px; border-bottom: 2px solid #e8e8e8; }
+.tab-btn { padding: 12px 36px; font-size: 16px; font-weight: 600; background: none; border: none; cursor: pointer; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s; }
+.tab-btn:hover { color: #1a5490; }
+.tab-btn.active { color: #1a5490; border-bottom-color: #1a5490; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.card h2 { color: #1a5490; margin-bottom: 15px; font-size: 18px; border-left: 4px solid #1a5490; padding-left: 10px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.form-group { display: flex; flex-direction: column; }
+.form-group label { font-size: 13px; color: #666; margin-bottom: 5px; }
+.form-group input, .form-group select { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; outline: none; }
+.form-group input:focus, .form-group select:focus { border-color: #1a5490; }
+.fee-item { border: 1px solid #e8e8e8; border-radius: 6px; padding: 15px; margin-bottom: 12px; background: #fafafa; }
+.fee-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.fee-item-header h3 { font-size: 15px; color: #333; }
+.btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: #1a5490; color: #fff; }
+.btn-danger { background: #ff4d4f; color: #fff; padding: 4px 10px; font-size: 12px; }
+.btn-add { background: #52c41a; color: #fff; margin-top: 10px; }
+.btn-calc { background: #fa8c16; color: #fff; padding: 12px 30px; font-size: 16px; display: block; margin: 20px auto; }
+.btn-export { background: #722ed1; color: #fff; padding: 10px 24px; font-size: 14px; }
+.result-summary { background: linear-gradient(135deg, #1a5490 0%, #2a6db5 100%); color: #fff; border-radius: 10px; padding: 25px; margin-bottom: 20px; text-align: center; }
+.result-summary .label { font-size: 14px; opacity: 0.9; margin-bottom: 8px; }
+.result-summary .value { font-size: 36px; font-weight: bold; letter-spacing: 2px; }
+.result-summary .sub-value { font-size: 14px; margin-top: 5px; opacity: 0.85; }
+.result-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
+.result-breakdown .item { background: rgba(255,255,255,0.15); border-radius: 6px; padding: 12px; }
+.result-breakdown .item .lbl { font-size: 12px; opacity: 0.85; }
+.result-breakdown .item .val { font-size: 20px; font-weight: bold; margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+th { background: #fafafa; color: #666; font-weight: 600; }
+.positive { color: #fa541c; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.tag-upfront { background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591; }
+.tag-periodic { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+.publication-header { text-align: center; border-bottom: 2px solid #1a5490; padding-bottom: 15px; margin-bottom: 20px; }
+.publication-header h1 { color: #1a5490; font-size: 22px; margin-bottom: 8px; }
+.publication-header .sub { color: #666; font-size: 13px; }
+.publication-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #fafafa; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+.publication-meta .m-label { font-size: 12px; color: #999; }
+.publication-meta .m-value { font-size: 14px; font-weight: 600; color: #333; margin-top: 3px; }
+.tip { font-size: 12px; color: #999; margin-top: 4px; }
+.contingent-block { background: #fff7e6; border: 1px solid #ffd591; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
+.contingent-block h4 { color: #d46b08; font-size: 15px; margin-bottom: 8px; }
+.contingent-block .cb-rate { font-size: 22px; font-weight: bold; color: #d46b08; margin: 8px 0; }
+.contingent-block .cb-rule { font-size: 13px; color: #666; line-height: 1.8; }
+.contingent-block .cb-base { font-size: 12px; color: #999; margin-top: 4px; }
+.normal-block { background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
+.normal-block h4 { color: #389e0d; font-size: 15px; margin-bottom: 8px; }
+.normal-block .nb-rate { font-size: 20px; font-weight: bold; color: #389e0d; margin: 6px 0; }
+.coupon-item { border: 1px solid #ffadd2; background: #fff0f6; border-radius: 6px; padding: 12px; margin-bottom: 8px; }
+.coupon-item .coupon-title { font-weight: 600; color: #c41d7f; font-size: 13px; margin-bottom: 6px; }
+#pub-panel-ent, #pub-panel-ind { display: none; }
+#pub-panel-ent.visible, #pub-panel-ind.visible { display: block; }
+@media print { body { background: #fff; padding: 0; } .no-print { display: none !important; } .card { box-shadow: none; border: 1px solid #e8e8e8; page-break-inside: avoid; } .result-summary { background: #1a5490 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .tab-nav { display: none !important; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1 class="no-print">贷款综合融资成本公示系统</h1>
+
+<div class="tab-nav no-print">
+  <button class="tab-btn active" onclick="switchTab('ent', this)">企业贷款</button>
+  <button class="tab-btn" onclick="switchTab('ind', this)">个人贷款</button>
+</div>
+
+<!-- ==================== 企业贷款模块 ==================== -->
+<div id="tab-ent" class="tab-content active">
+
+<div class="card no-print">
+  <h2>一、贷款基本信息</h2>
+  <div class="grid3">
+    <div class="form-group"><label>贷款本金（元）</label><input type="number" id="ent_principal" value="1000000" step="10000"></div>
+    <div class="form-group"><label>名义年利率（%）</label><input type="number" id="ent_annualRate" value="4.75" step="0.01"></div>
+    <div class="form-group"><label>还款方式</label>
+      <select id="ent_repayMethod">
+        <option value="一次性还本">到期一次性还本</option>
+        <option value="等额本金">等额本金</option>
+        <option value="等额本息" selected>等额本息</option>
+      </select>
+    </div>
+    <div class="form-group"><label>起始日</label><input type="date" id="ent_startDate" value="2024-01-01"></div>
+    <div class="form-group"><label>到期日</label><input type="date" id="ent_endDate" value="2026-01-01"></div>
+    <div class="form-group"><label>还款频率</label>
+      <select id="ent_freq">
+        <option value="按月" selected>按月</option>
+        <option value="按季">按季</option>
+        <option value="按年">按年</option>
+      </select>
+    </div>
+    <div class="form-group"><label>首次还款日（可选）</label><input type="date" id="ent_firstRepayDate" placeholder="留空则自动计算"></div>
+    <div class="form-group"><label>循环授信模式</label>
+      <select id="ent_useCreditMode"><option value="no" selected>否</option><option value="yes">是</option></select>
+    </div>
+  </div>
+</div>
+
+<div class="card no-print">
+  <h2>二、融资费用明细配置</h2>
+  <div id="ent_feeList"></div>
+  <div style="text-align:center;">
+    <button class="btn btn-add" onclick="ent_addFee('upfront')">+ 添加期初一次性费用</button>
+    <button class="btn btn-add" onclick="ent_addFee('periodic')" style="margin-left:10px;">+ 添加周期性费用</button>
+  </div>
+  <div class="tip" style="margin-top:10px;">费用年化率采用内部收益率法（IRR），以名义月/日差计算周期偏移，按单利换算为年化率。</div>
+</div>
+
+<button class="btn btn-calc no-print" onclick="ent_calculate()">综合融资成本测算</button>
+
+<div id="pub-panel-ent">
+  <div class="publication-header">
+    <h1>企业贷款综合融资成本公示书</h1>
+    <div class="sub">测算依据：参考《中国人民银行公告〔2021〕第3号》及企业贷款综合融资成本年化率计算规则</div>
+  </div>
+  <div class="result-summary" id="ent_resultSummary"></div>
+  <div class="card">
+    <h2>三、贷款基本信息公示</h2>
+    <div class="publication-meta" id="ent_loanMeta"></div>
+  </div>
+  <div class="card" id="ent_repayScheduleCard" style="display:none;">
+    <h2>四、还款计划表</h2>
+    <div style="max-height:400px;overflow:auto;"><table id="ent_repayScheduleTable"></table></div>
+  </div>
+  <div class="card">
+    <h2>五、融资费用明细及年化率分解</h2>
+    <table id="ent_feeBreakdownTable"><thead><tr><th>序号</th><th>费用名称</th><th>费用类型</th><th>费用总额（元）</th><th>年化率</th><th>占比</th></tr></thead><tbody></tbody></table>
+  </div>
+  <div class="card">
+    <h2>六、综合融资成本汇总</h2>
+    <table id="ent_summaryTable"><thead><tr><th>成本构成</th><th>年化率</th><th>占比</th></tr></thead><tbody></tbody></table>
+  </div>
+  <div style="text-align:right; color:#999; font-size:12px; margin-top:20px;" class="no-print">测算日期：<span id="ent_calcDate"></span></div>
+  <div style="text-align:center; margin-top:30px;" class="no-print">
+    <button class="btn btn-export" onclick="ent_exportPDF()">导出为PDF</button>
+    <button class="btn btn-primary" style="margin-left:10px;" onclick="window.print()">打印</button>
+  </div>
+</div>
+
+</div>
+
+<!-- ==================== 个人贷款模块 ==================== -->
+<div id="tab-ind" class="tab-content">
+
+<div class="card no-print">
+  <h2>一、贷款基本信息</h2>
+  <div class="grid3">
+    <div class="form-group"><label>贷款本金（元）</label><input type="number" id="ind_principal" value="10000" step="1000"></div>
+    <div class="form-group"><label>名义年利率（%）</label><input type="number" id="ind_annualRate" value="8" step="0.01"></div>
+    <div class="form-group"><label>贷款期限（月）</label><input type="number" id="ind_termMonths" value="12" step="1" min="1"></div>
+    <div class="form-group"><label>还款方式</label>
+      <select id="ind_repayMethod">
+        <option value="等额本息" selected>等额本息</option>
+        <option value="等额本金">等额本金</option>
+        <option value="按月付息到期还本">按月付息、到期还本</option>
+        <option value="一次性还本付息">到期一次性还本付息</option>
+        <option value="等本等费">等本等费</option>
+      </select>
+    </div>
+    <div class="form-group"><label>起始日</label><input type="date" id="ind_startDate" value="2024-01-01"></div>
+    <div class="form-group"><label>还款频率</label>
+      <select id="ind_freq">
+        <option value="按月" selected>按月</option>
+        <option value="按季">按季</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="card no-print">
+  <h2>二、正常履约费用（可选）</h2>
+  <div id="ind_feeList"></div>
+  <div style="text-align:center;">
+    <button class="btn btn-add" onclick="ind_addFee('periodic')">+ 添加周期性费用（如担保费）</button>
+    <button class="btn btn-add" onclick="ind_addFee('upfront')" style="margin-left:10px;">+ 添加一次性费用（如手续费）</button>
+  </div>
+  <div class="tip" style="margin-top:10px;">正常履约无额外费用则无需添加。费用年化率采用IRR法自动计算。</div>
+</div>
+
+<div class="card no-print">
+  <h2>三、利率优惠/优惠券（可选）</h2>
+  <div id="ind_couponList"></div>
+  <div style="text-align:center;">
+    <button class="btn btn-add" onclick="ind_addCoupon()">+ 添加利率优惠</button>
+  </div>
+  <div class="tip" style="margin-top:10px;">支持"前N期利息折扣"等优惠场景，如例4的"前3期利息5折"。</div>
+</div>
+
+<div class="card no-print">
+  <h2>四、或有成本配置</h2>
+  <div class="grid2">
+    <div class="form-group">
+      <label>逾期罚息</label>
+      <select id="ind_overdueType" onchange="ind_toggleOverdue()">
+        <option value="none" selected>无</option>
+        <option value="markup">按正常利率上浮</option>
+        <option value="fixed">固定年利率</option>
+      </select>
+    </div>
+    <div class="form-group" id="ind_overdueMarkupWrap" style="display:none;">
+      <label>逾期利率上浮（%）</label>
+      <input type="number" id="ind_overdueMarkup" value="50" step="1">
+    </div>
+    <div class="form-group" id="ind_overdueFixedWrap" style="display:none;">
+      <label>逾期固定年利率（%）</label>
+      <input type="number" id="ind_overdueFixed" value="12" step="0.01">
+    </div>
+    <div class="form-group">
+      <label>逾期罚息基数</label>
+      <select id="ind_overdueBase">
+        <option value="未还本金" selected>逾期未还本金</option>
+        <option value="未还本金及利息">逾期未还本金及利息</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>挪用罚息</label>
+      <select id="ind_misuseType" onchange="ind_toggleMisuse()">
+        <option value="none" selected>无</option>
+        <option value="markup">按正常利率上浮</option>
+        <option value="fixed">固定年利率</option>
+      </select>
+    </div>
+    <div class="form-group" id="ind_misuseMarkupWrap" style="display:none;">
+      <label>挪用利率上浮（%）</label>
+      <input type="number" id="ind_misuseMarkup" value="100" step="1">
+    </div>
+    <div class="form-group" id="ind_misuseFixedWrap" style="display:none;">
+      <label>挪用固定年利率（%）</label>
+      <input type="number" id="ind_misuseFixed" value="16" step="0.01">
+    </div>
+    <div class="form-group">
+      <label>提前还款违约金</label>
+      <select id="ind_prepayType" onchange="ind_togglePrepay()">
+        <option value="none" selected>无</option>
+        <option value="interest_diff">利息差额法</option>
+        <option value="fixed_rate">按剩余本金比例</option>
+      </select>
+    </div>
+    <div class="form-group" id="ind_prepayRateWrap" style="display:none;">
+      <label>重算年利率（%）</label>
+      <input type="number" id="ind_prepayRate" value="13.68" step="0.01">
+    </div>
+    <div class="form-group" id="ind_prepayRatioWrap" style="display:none;">
+      <label>违约金比例（%剩余本金）</label>
+      <input type="number" id="ind_prepayRatio" value="1" step="0.1">
+    </div>
+    <div class="form-group">
+      <label>其他违约金</label>
+      <select id="ind_otherPenalty" onchange="ind_toggleOtherPenalty()">
+        <option value="none" selected>无</option>
+        <option value="markup">按正常利率上浮</option>
+        <option value="comprehensive">按综合融资成本率</option>
+      </select>
+    </div>
+    <div class="form-group" id="ind_otherPenaltyMarkupWrap" style="display:none;">
+      <label>上浮比例（%）</label>
+      <input type="number" id="ind_otherPenaltyMarkup" value="50" step="1">
+    </div>
+    <div class="form-group" id="ind_otherPenaltyBaseWrap" style="display:none;">
+      <label>基数说明</label>
+      <input type="text" id="ind_otherPenaltyBase" value="剩余贷款本金">
+    </div>
+  </div>
+</div>
+
+<button class="btn btn-calc no-print" onclick="ind_calculate()">综合融资成本测算</button>
+
+<div id="pub-panel-ind">
+  <div class="publication-header">
+    <h1>个人贷款综合融资成本公示书</h1>
+    <div class="sub">测算依据：参考个人贷款综合融资成本明示管理相关规定及示例计算规则</div>
+  </div>
+  <div class="result-summary" id="ind_resultSummary"></div>
+  <div class="card">
+    <h2>一、贷款基本信息公示</h2>
+    <div class="publication-meta" id="ind_loanMeta"></div>
+  </div>
+  <div class="card" id="ind_repayScheduleCard" style="display:none;">
+    <h2>二、还款计划表</h2>
+    <div style="max-height:500px;overflow:auto;"><table id="ind_repayScheduleTable"></table></div>
+  </div>
+  <div class="card">
+    <h2>三、正常履约成本明细</h2>
+    <div id="ind_normalCostDetail"></div>
+  </div>
+  <div class="card">
+    <h2>四、或有成本信息</h2>
+    <div id="ind_contingentDetail"></div>
+  </div>
+  <div class="card">
+    <h2>五、综合融资成本汇总</h2>
+    <table id="ind_summaryTable"><thead><tr><th>成本类型</th><th>年化率</th><th>说明</th></tr></thead><tbody></tbody></table>
+  </div>
+  <div style="text-align:right; color:#999; font-size:12px; margin-top:20px;" class="no-print">测算日期：<span id="ind_calcDate"></span></div>
+  <div style="text-align:center; margin-top:30px;" class="no-print">
+    <button class="btn btn-export" onclick="ind_exportPDF()">导出为PDF</button>
+    <button class="btn btn-primary" style="margin-left:10px;" onclick="window.print()">打印</button>
+  </div>
+</div>
+
+</div>
+
+</div>
+
+<script>
+// ============== 共享核心计算引擎 ==============
+const FREQ_CONFIG = { '按月': { unitDays: 30, n: 12, monthsPerPeriod: 1 }, '按季': { unitDays: 90, n: 4, monthsPerPeriod: 3 }, '按年': { unitDays: 365, n: 1, monthsPerPeriod: 12 } };
+
+function addMonths(dateStr, months) {
+  const d = new Date(dateStr);
+  let m = d.getMonth() + months;
+  let year = d.getFullYear() + Math.floor(m / 12);
+  let month = m % 12;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const day = Math.min(d.getDate(), lastDay);
+  return new Date(year, month, day).toISOString().slice(0, 10);
+}
+
+function solveIRR(cashflows) {
+  const npv = (R) => cashflows.reduce((s, cf) => s + cf.amt / Math.pow(1 + R, cf.offset), 0);
+  let lo = -0.999, hi = 10;
+  let fLo = npv(lo), fHi = npv(hi);
+  if (fLo * fHi > 0) { hi = 100; fHi = npv(hi); }
+  if (fLo * fHi > 0) { hi = 1000; fHi = npv(hi); }
+  if (fLo * fHi > 0) { hi = 10000; }
+  for (let iter = 0; iter < 300; iter++) {
+    const mid = (lo + hi) / 2;
+    const fMid = npv(mid);
+    if (Math.abs(fMid) < 1e-14) return mid;
+    if (fMid * npv(lo) <= 0) hi = mid;
+    else lo = mid;
+    if ((hi - lo) / 2 < 1e-16) break;
+  }
+  return (lo + hi) / 2;
+}
+
+function fmtPct(x, dec) { if (dec === undefined) dec = 4; return (x * 100).toFixed(dec) + '%'; }
+function fmtMoney(x) { return (Math.round(x * 100) / 100).toFixed(2); }
+
+// ============== Tab 切换 ==============
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ============== PDF 导出 ==============
+async function doExportPDF(panel, defaultName) {
+  if (!panel || !panel.classList.contains('visible')) { alert('请先点击测算按钮生成公示内容'); return; }
+  const clone = panel.cloneNode(true);
+  clone.querySelectorAll('.no-print').forEach(el => el.remove());
+  clone.querySelectorAll('*').forEach(el => { if (el.style) { if (el.style.overflow) el.style.overflow = 'visible'; if (el.style.maxHeight) el.style.maxHeight = 'none'; if (el.style.display === 'none') el.style.display = ''; } });
+  clone.style.cssText = 'position:absolute;left:0;top:0;background:#fff;width:' + panel.offsetWidth + 'px;height:auto;display:block;visibility:visible;';
+  document.body.appendChild(clone);
+  try {
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#fff', logging: false, windowWidth: clone.scrollWidth, windowHeight: clone.scrollHeight });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight(), margin = 10, avail = ph - margin * 2;
+    const iw = pw - margin * 2, ih = canvas.height * iw / canvas.width;
+    let pos = 0, rem = ih, first = true;
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    while (rem > 0) { if (!first) pdf.addPage(); pdf.addImage(imgData, 'JPEG', margin, margin + pos, iw, ih); first = false; rem -= avail; pos -= avail; }
+    pdf.save(defaultName + '_' + new Date().toISOString().slice(0, 10) + '.pdf');
+  } finally { document.body.removeChild(clone); }
+}
+
+function ent_exportPDF() { doExportPDF(document.getElementById('pub-panel-ent'), '企业贷款综合融资成本公示'); }
+function ind_exportPDF() { doExportPDF(document.getElementById('pub-panel-ind'), '个人贷款综合融资成本公示'); }
+
+// ============== 企业贷款 ==============
+let ent_feeCounter = 0;
+function ent_addFee(type) {
+  ent_feeCounter++;
+  const isUpfront = type === 'upfront';
+  const c = document.createElement('div'); c.className = 'fee-item'; c.dataset.type = isUpfront ? 'upfront' : 'periodic';
+  const tag = isUpfront ? '<span class="tag tag-upfront">期初一次性</span>' : '<span class="tag tag-periodic">周期性支付</span>';
+  c.innerHTML = isUpfront ? `
+    <div class="fee-item-header"><h3>费用项 #${ent_feeCounter} ${tag}</h3><button class="btn btn-danger" onclick="this.closest('.fee-item').remove()">删除</button></div>
+    <div class="grid3"><div class="form-group"><label>费用名称</label><input type="text" class="fee-name" value="担保费"></div><div class="form-group"><label>费用金额（元）</label><input type="number" class="fee-amount" value="10000" step="100"></div></div>` : `
+    <div class="fee-item-header"><h3>费用项 #${ent_feeCounter} ${tag}</h3><button class="btn btn-danger" onclick="this.closest('.fee-item').remove()">删除</button></div>
+    <div class="grid3"><div class="form-group"><label>费用名称</label><input type="text" class="fee-name" value="账户管理费"></div><div class="form-group"><label>每期费用（元）</label><input type="number" class="fee-per-period" value="2000" step="100"></div><div class="form-group"><label>支付期数</label><input type="number" class="fee-periods" value="24" min="1"></div><div class="form-group"><label>支付时机</label><select class="fee-timing"><option value="start">期初</option><option value="end" selected>期末</option></select></div></div>`;
+  document.getElementById('ent_feeList').appendChild(c);
+}
+
+function ent_generateSchedule(principal, annualRate, startDate, endDate, method, freq, firstRepayDate) {
+  const cfg = FREQ_CONFIG[freq]; const n = cfg.n; const rPeriod = annualRate / 100 / n;
+  const stepMonths = cfg.monthsPerPeriod;
+  let repayDates;
+  if (method === '一次性还本') repayDates = [endDate];
+  else {
+    let cur = firstRepayDate || addMonths(startDate, stepMonths);
+    repayDates = [];
+    while (cur <= endDate) { repayDates.push(cur); cur = addMonths(cur, stepMonths); }
+    if (repayDates.length && repayDates[repayDates.length - 1] !== endDate) repayDates[repayDates.length - 1] = endDate;
+  }
+  const N = repayDates.length;
+  const offsets = [];
+  if (method === '一次性还本') {
+    for (let t = 0; t < N; t++) offsets.push((new Date(repayDates[t]) - new Date(startDate)) / 86400000 / 30);
+  } else {
+    const firstOffset = (firstRepayDate && firstRepayDate !== startDate) ? (new Date(firstRepayDate) - new Date(startDate)) / 86400000 / 30 : 1;
+    for (let t = 0; t < N; t++) offsets.push((t === N - 1) ? N : firstOffset + t);
+  }
+  const schedule = []; let remain = principal;
+  if (method === '一次性还本') {
+    for (let i = 0; i < N; i++) {
+      const prev = i === 0 ? startDate : repayDates[i - 1];
+      const months = (new Date(repayDates[i]) - new Date(prev)) / 86400000 / 30;
+      const interest = principal * annualRate / 100 / 12 * months;
+      schedule.push({ date: repayDates[i], principal: (i === N - 1) ? principal : 0, interest, total: ((i === N - 1) ? principal : 0) + interest, offset: offsets[i] });
+    }
+  } else if (method === '等额本金') {
+    const pp = principal / N;
+    for (let i = 0; i < N; i++) {
+      const prev = i === 0 ? startDate : repayDates[i - 1];
+      const months = (new Date(repayDates[i]) - new Date(prev)) / 86400000 / 30;
+      const interest = remain * annualRate / 100 / 12 * months;
+      const pay = (i === N - 1) ? remain : pp; remain -= pay;
+      schedule.push({ date: repayDates[i], principal: pay, interest, total: pay + interest, offset: offsets[i] });
+    }
+  } else if (method === '等额本息') {
+    const C = principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
+    const principals = []; let tmp = principal;
+    for (let i = 0; i < N - 1; i++) { const int = tmp * rPeriod; principals.push(C - int); tmp -= (C - int); }
+    principals.push(tmp);
+    for (let i = 0; i < N; i++) {
+      const prev = i === 0 ? startDate : repayDates[i - 1];
+      const months = (new Date(repayDates[i]) - new Date(prev)) / 86400000 / 30;
+      const interest = remain * annualRate / 100 / 12 * months;
+      const pp = principals[i]; remain -= pp;
+      schedule.push({ date: repayDates[i], principal: pp, interest, total: pp + interest, offset: offsets[i] });
+    }
+  }
+  return schedule;
+}
+
+function ent_calculate() {
+  const principal = parseFloat(document.getElementById('ent_principal').value);
+  const annualRate = parseFloat(document.getElementById('ent_annualRate').value);
+  const startDate = document.getElementById('ent_startDate').value;
+  const endDate = document.getElementById('ent_endDate').value;
+  const method = document.getElementById('ent_repayMethod').value;
+  const freq = document.getElementById('ent_freq').value;
+  const firstRepayDate = document.getElementById('ent_firstRepayDate').value || null;
+  const useCreditMode = document.getElementById('ent_useCreditMode').value;
+  const { n } = FREQ_CONFIG[freq];
+  let effMethod = method, effFirstRepay = firstRepayDate;
+  if (useCreditMode === 'yes') { effMethod = '一次性还本'; effFirstRepay = null; }
+
+  const schedule = ent_generateSchedule(principal, annualRate, startDate, endDate, effMethod, freq, effFirstRepay);
+  const cfLoan = [{ offset: 0, amt: principal }];
+  for (const r of schedule) cfLoan.push({ offset: r.offset, amt: -(r.principal + r.interest) });
+  const interestRate = solveIRR(cfLoan) * n;
+  const nPeriods = schedule.length;
+
+  const feeResults = [];
+  document.querySelectorAll('#ent_feeList .fee-item').forEach(item => {
+    const feeName = item.querySelector('.fee-name').value;
+    const feeType = item.dataset.type;
+    const feeCF = [];
+    if (feeType === 'upfront') {
+      const amt = parseFloat(item.querySelector('.fee-amount').value);
+      feeCF.push({ offset: 0, amt });
+      for (const r of schedule) feeCF.push({ offset: r.offset, amt: r.principal });
+      feeResults.push({ name: feeName, type: feeType, totalAmount: amt, annualizedRate: solveIRR(feeCF) * n });
+    } else {
+      const perPeriod = parseFloat(item.querySelector('.fee-per-period').value);
+      const periods = parseInt(item.querySelector('.fee-periods').value);
+      const timing = item.querySelector('.fee-timing').value;
+      if (timing === 'start') {
+        for (let i = 0; i < periods; i++) feeCF.push({ offset: i, amt: perPeriod });
+        for (const r of schedule) feeCF.push({ offset: r.offset, amt: r.principal });
+      } else {
+        const cfMap = {};
+        for (const r of schedule) cfMap[r.offset] = (cfMap[r.offset] || 0) + r.principal;
+        for (let i = 0; i < Math.min(periods, nPeriods); i++) { const o = schedule[i].offset; cfMap[o] = (cfMap[o] || 0) + perPeriod; }
+        Object.keys(cfMap).forEach(k => feeCF.push({ offset: parseFloat(k), amt: cfMap[parseFloat(k)] }));
+      }
+      feeResults.push({ name: feeName, type: feeType, totalAmount: perPeriod * periods, annualizedRate: solveIRR(feeCF) * n });
+    }
+  });
+
+  const totalFeeRate = feeResults.reduce((s, f) => s + f.annualizedRate, 0);
+  const comprehensive = interestRate + totalFeeRate;
+  const panel = document.getElementById('pub-panel-ent'); panel.classList.add('visible');
+
+  document.getElementById('ent_resultSummary').innerHTML = `
+    <div class="label">综合融资成本年化率</div>
+    <div class="value">${fmtPct(comprehensive)}</div>
+    <div class="sub-value">贷款利息年化率 ${fmtPct(interestRate)} + 费用年化率 ${fmtPct(totalFeeRate)}</div>
+    <div class="result-breakdown">
+      <div class="item"><div class="lbl">贷款本金</div><div class="val">${fmtMoney(principal)}</div></div>
+      <div class="item"><div class="lbl">还款期数</div><div class="val">${schedule.length}</div></div>
+      <div class="item"><div class="lbl">费用项数</div><div class="val">${feeResults.length}</div></div>
+    </div>`;
+
+  document.getElementById('ent_loanMeta').innerHTML = `
+    <div><div class="m-label">贷款本金</div><div class="m-value">${fmtMoney(principal)} 元</div></div>
+    <div><div class="m-label">名义年利率</div><div class="m-value">${annualRate.toFixed(2)}%</div></div>
+    <div><div class="m-label">起始日</div><div class="m-value">${startDate}</div></div>
+    <div><div class="m-label">到期日</div><div class="m-value">${endDate}</div></div>
+    <div><div class="m-label">还款方式</div><div class="m-value">${effMethod}</div></div>
+    <div><div class="m-label">还款频率</div><div class="m-value">${freq}</div></div>
+    <div><div class="m-label">利息计算</div><div class="m-value">名义月差 / 单利</div></div>
+    <div><div class="m-label">费用测算</div><div class="m-value">IRR内部收益率法</div></div>`;
+
+  const rc = document.getElementById('ent_repayScheduleCard');
+  if (schedule.length <= 60) {
+    rc.style.display = 'block';
+    let h = '<thead><tr><th>期数</th><th>还款日期</th><th>本金（元）</th><th>利息（元）</th><th>合计（元）</th></tr></thead><tbody>';
+    for (let i = 0; i < schedule.length; i++) { const r = schedule[i]; h += `<tr><td>${i+1}</td><td>${r.date}</td><td>${fmtMoney(r.principal)}</td><td>${fmtMoney(r.interest)}</td><td><b>${fmtMoney(r.total)}</b></td></tr>`; }
+    document.getElementById('ent_repayScheduleTable').innerHTML = h + '</tbody>';
+  } else rc.style.display = 'none';
+
+  const feeTbody = document.querySelector('#ent_feeBreakdownTable tbody'); let fh = '';
+  feeResults.forEach((f, i) => {
+    const tag = f.type === 'upfront' ? '<span class="tag tag-upfront">期初一次性</span>' : '<span class="tag tag-periodic">周期性支付</span>';
+    const ratio = comprehensive > 0 ? f.annualizedRate / comprehensive : 0;
+    fh += `<tr><td>${i+1}</td><td><b>${f.name}</b></td><td>${tag}</td><td>${fmtMoney(f.totalAmount)}</td><td>${fmtPct(f.annualizedRate)}</td><td>${(ratio*100).toFixed(2)}%</td></tr>`;
+  });
+  if (!feeResults.length) fh = '<tr><td colspan="6" style="text-align:center;color:#999;padding:20px;">未添加任何融资费用</td></tr>';
+  feeTbody.innerHTML = fh;
+
+  const sumTbody = document.querySelector('#ent_summaryTable tbody');
+  const items = [{ name: '贷款利息年化率', rate: interestRate }, ...feeResults.map(f => ({ name: f.name + '（' + (f.type === 'upfront' ? '一次性' : '周期') + '）', rate: f.annualizedRate })), { name: '费用年化率合计', rate: totalFeeRate, isSub: true }, { name: '综合融资成本年化率', rate: comprehensive, isTotal: true }];
+  let sh = '';
+  items.forEach(it => {
+    const ratio = comprehensive > 0 ? it.rate / comprehensive : 0;
+    const b = it.isTotal || it.isSub ? 'font-weight:bold;background:#fafafa;' : '';
+    sh += `<tr style="${b}"><td>${it.name}</td><td>${fmtPct(it.rate)}</td><td>${(ratio*100).toFixed(2)}%</td></tr>`;
+  });
+  sumTbody.innerHTML = sh;
+  document.getElementById('ent_calcDate').textContent = new Date().toLocaleString('zh-CN');
+  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth' }), 100);
+}
+
+// ============== 个人贷款 ==============
+let ind_feeCounter = 0, ind_couponCounter = 0;
+
+function ind_addFee(type) {
+  ind_feeCounter++;
+  const isUpfront = type === 'upfront';
+  const c = document.createElement('div'); c.className = 'fee-item'; c.dataset.type = isUpfront ? 'upfront' : 'periodic';
+  const tag = isUpfront ? '<span class="tag tag-upfront">期初一次性</span>' : '<span class="tag tag-periodic">周期性支付</span>';
+  c.innerHTML = isUpfront ? `
+    <div class="fee-item-header"><h3>费用项 #${ind_feeCounter} ${tag}</h3><button class="btn btn-danger" onclick="this.closest('.fee-item').remove()">删除</button></div>
+    <div class="grid3"><div class="form-group"><label>费用名称</label><input type="text" class="fee-name" value="手续费"></div><div class="form-group"><label>收取主体</label><input type="text" class="fee-subject" value="贷款机构"></div><div class="form-group"><label>费用金额（元）</label><input type="number" class="fee-amount" value="300" step="10"></div></div>` : `
+    <div class="fee-item-header"><h3>费用项 #${ind_feeCounter} ${tag}</h3><button class="btn btn-danger" onclick="this.closest('.fee-item').remove()">删除</button></div>
+    <div class="grid3"><div class="form-group"><label>费用名称</label><input type="text" class="fee-name" value="担保费"></div><div class="form-group"><label>收取主体</label><input type="text" class="fee-subject" value="担保公司"></div><div class="form-group"><label>每期费用（元）</label><input type="number" class="fee-per-period" value="47.56" step="0.01"></div><div class="form-group"><label>支付期数</label><input type="number" class="fee-periods" value="12" min="1"></div><div class="form-group"><label>支付时机</label><select class="fee-timing"><option value="end" selected>期末（随还款）</option><option value="start">期初</option></select></div></div>`;
+  document.getElementById('ind_feeList').appendChild(c);
+}
+
+function ind_addCoupon() {
+  ind_couponCounter++;
+  const c = document.createElement('div'); c.className = 'coupon-item';
+  c.innerHTML = `
+    <div class="fee-item-header"><div class="coupon-title">优惠项 #${ind_couponCounter}</div><button class="btn btn-danger" onclick="this.closest('.coupon-item').remove()">删除</button></div>
+    <div class="grid3"><div class="form-group"><label>优惠名称</label><input type="text" class="cpn-name" value="前N期利息优惠"></div><div class="form-group"><label>优惠类型</label><select class="cpn-type" onchange="ind_toggleCoupon(this)"><option value="discount" selected>利息折扣</option><option value="fixed">固定利息金额</option><option value="waive">免收利息</option></select></div><div class="form-group"><label>起始期数</label><input type="number" class="cpn-start" value="1" min="1"></div><div class="form-group"><label>连续期数</label><input type="number" class="cpn-count" value="3" min="1"></div><div class="form-group cpn-discount-wrap"><label>利息折扣（%，50=5折）</label><input type="number" class="cpn-discount" value="50" step="1" min="0" max="100"></div><div class="form-group cpn-fixed-wrap" style="display:none;"><label>固定每期利息（元）</label><input type="number" class="cpn-fixed-interest" value="0" step="0.01"></div></div>`;
+  document.getElementById('ind_couponList').appendChild(c);
+}
+
+function ind_toggleCoupon(sel) {
+  const c = sel.closest('.coupon-item'); const v = sel.value;
+  c.querySelector('.cpn-discount-wrap').style.display = (v === 'discount') ? '' : 'none';
+  c.querySelector('.cpn-fixed-wrap').style.display = (v === 'fixed') ? '' : 'none';
+}
+
+function ind_toggleOverdue() { const v = document.getElementById('ind_overdueType').value; document.getElementById('ind_overdueMarkupWrap').style.display = (v === 'markup') ? '' : 'none'; document.getElementById('ind_overdueFixedWrap').style.display = (v === 'fixed') ? '' : 'none'; }
+function ind_toggleMisuse() { const v = document.getElementById('ind_misuseType').value; document.getElementById('ind_misuseMarkupWrap').style.display = (v === 'markup') ? '' : 'none'; document.getElementById('ind_misuseFixedWrap').style.display = (v === 'fixed') ? '' : 'none'; }
+function ind_togglePrepay() { const v = document.getElementById('ind_prepayType').value; document.getElementById('ind_prepayRateWrap').style.display = (v === 'interest_diff') ? '' : 'none'; document.getElementById('ind_prepayRatioWrap').style.display = (v === 'fixed_rate') ? '' : 'none'; }
+function ind_toggleOtherPenalty() { const v = document.getElementById('ind_otherPenalty').value; document.getElementById('ind_otherPenaltyMarkupWrap').style.display = (v === 'markup') ? '' : 'none'; document.getElementById('ind_otherPenaltyBaseWrap').style.display = (v === 'markup' || v === 'comprehensive') ? '' : 'none'; }
+
+function ind_generateSchedule(principal, annualRate, termMonths, method, freq, coupons) {
+  const cfg = FREQ_CONFIG[freq]; const n = cfg.n; const rPeriod = annualRate / 100 / n;
+  const N = termMonths; const startDate = document.getElementById('ind_startDate').value;
+  const couponMap = {};
+  if (coupons) coupons.forEach(cpn => { for (let i = parseInt(cpn.start) - 1; i < parseInt(cpn.start) - 1 + parseInt(cpn.count); i++) if (i >= 0 && i < N) couponMap[i] = cpn; });
+  const schedule = []; let remain = principal;
+
+  if (method === '等额本息') {
+    const C = principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
+    const principals = []; let tmp = principal;
+    for (let i = 0; i < N - 1; i++) { const int = tmp * rPeriod; principals.push(C - int); tmp -= (C - int); }
+    principals.push(tmp);
+    for (let i = 0; i < N; i++) { let interest = remain * rPeriod; const cp = couponMap[i]; if (cp) { if (cp.type === 'discount') interest = interest * cp.discount / 100; else if (cp.type === 'fixed') interest = cp.fixedInterest; else if (cp.type === 'waive') interest = 0; } const pp = principals[i]; remain -= pp; schedule.push({ period: i + 1, principal: pp, interest, total: pp + interest, offset: i + 1 }); }
+  } else if (method === '等额本金') {
+    const pp = principal / N;
+    for (let i = 0; i < N; i++) { let interest = remain * rPeriod; const cp = couponMap[i]; if (cp) { if (cp.type === 'discount') interest = interest * cp.discount / 100; else if (cp.type === 'fixed') interest = cp.fixedInterest; else if (cp.type === 'waive') interest = 0; } const pay = (i === N - 1) ? remain : pp; remain -= pay; schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 }); }
+  } else if (method === '按月付息到期还本') {
+    for (let i = 0; i < N; i++) { let interest = remain * rPeriod; const cp = couponMap[i]; if (cp) { if (cp.type === 'discount') interest = interest * cp.discount / 100; else if (cp.type === 'fixed') interest = cp.fixedInterest; else if (cp.type === 'waive') interest = 0; } const pay = (i === N - 1) ? principal : 0; schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 }); }
+  } else if (method === '一次性还本付息') {
+    const interest = principal * rPeriod * N;
+    schedule.push({ period: 1, principal, interest, total: principal + interest, offset: N });
+  } else if (method === '等本等费') {
+    const pp = principal / N;
+    const C = principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
+    const feePerPeriod = C - pp;
+    for (let i = 0; i < N; i++) { let interest = feePerPeriod; const cp = couponMap[i]; if (cp) { if (cp.type === 'discount') interest = interest * cp.discount / 100; else if (cp.type === 'fixed') interest = cp.fixedInterest; else if (cp.type === 'waive') interest = 0; } const pay = (i === N - 1) ? remain : pp; remain -= pay; schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 }); }
+  }
+  for (let i = 0; i < schedule.length; i++) schedule[i].date = addMonths(startDate, i + 1);
+  return schedule;
+}
+
+function ind_calculate() {
+  const principal = parseFloat(document.getElementById('ind_principal').value);
+  const annualRate = parseFloat(document.getElementById('ind_annualRate').value);
+  const termMonths = parseInt(document.getElementById('ind_termMonths').value);
+  const method = document.getElementById('ind_repayMethod').value;
+  const startDate = document.getElementById('ind_startDate').value;
+  const freq = document.getElementById('ind_freq').value;
+  const { n } = FREQ_CONFIG[freq];
+
+  const coupons = [];
+  document.querySelectorAll('#ind_couponList .coupon-item').forEach(item => {
+    coupons.push({ name: item.querySelector('.cpn-name').value, type: item.querySelector('.cpn-type').value, start: item.querySelector('.cpn-start').value, count: item.querySelector('.cpn-count').value, discount: item.querySelector('.cpn-discount') ? item.querySelector('.cpn-discount').value : null, fixedInterest: item.querySelector('.cpn-fixed-interest') ? item.querySelector('.cpn-fixed-interest').value : null });
+  });
+
+  const schedule = ind_generateSchedule(principal, annualRate, termMonths, method, freq, coupons);
+  const N = schedule.length;
+
+  const cfLoan = [{ offset: 0, amt: principal }];
+  for (const r of schedule) cfLoan.push({ offset: r.offset, amt: -(r.principal + r.interest) });
+
+  function calcIRR(cf) {
+    if (method === '一次性还本付息') {
+      const cfY = cf.map(c => ({ offset: c.offset / 12, amt: c.amt }));
+      return solveIRR(cfY);
+    }
+    return solveIRR(cf) * n;
+  }
+
+  const interestRate = calcIRR(cfLoan);
+
+  const feeResults = [];
+  let prevIRR = interestRate;
+  let cumCF = cfLoan.map(c => ({ ...c }));
+
+  document.querySelectorAll('#ind_feeList .fee-item').forEach(item => {
+    const feeName = item.querySelector('.fee-name').value;
+    const feeSubject = item.querySelector('.fee-subject').value;
+    const feeType = item.dataset.type;
+
+    let cfFull = cumCF.map(c => ({ ...c }));
+    let totalFeeAmount = 0;
+
+    if (feeType === 'upfront') {
+      const amt = parseFloat(item.querySelector('.fee-amount').value);
+      cfFull[0].amt -= amt;
+      totalFeeAmount = amt;
+    } else {
+      const perPeriod = parseFloat(item.querySelector('.fee-per-period').value);
+      const periods = parseInt(item.querySelector('.fee-periods').value);
+      const timing = item.querySelector('.fee-timing').value;
+      totalFeeAmount = perPeriod * periods;
+      if (timing === 'start') {
+        for (let i = 0; i < Math.min(periods, N); i++) {
+          const o = i;
+          let found = false;
+          for (const cf of cfFull) { if (cf.offset === o) { cf.amt -= perPeriod; found = true; break; } }
+          if (!found) cfFull.push({ offset: o, amt: -perPeriod });
+        }
+      } else {
+        for (let i = 0; i < Math.min(periods, N); i++) cfFull[i + 1].amt -= perPeriod;
+      }
+    }
+
+    const fullIRR = calcIRR(cfFull);
+    feeResults.push({ name: feeName, subject: feeSubject, type: feeType, totalAmount: totalFeeAmount, annualizedRate: fullIRR - prevIRR });
+    prevIRR = fullIRR;
+    cumCF = cfFull;
+  });
+
+  const totalFeeRate = feeResults.reduce((s, f) => s + f.annualizedRate, 0);
+  const comprehensive = interestRate + totalFeeRate;
+
+  const normalLoanRate = annualRate / 100;
+  const contingentCosts = [];
+
+  const ovType = document.getElementById('ind_overdueType').value;
+  if (ovType !== 'none') {
+    let ovRate, ovRule;
+    if (ovType === 'markup') { const mk = parseFloat(document.getElementById('ind_overdueMarkup').value); ovRate = normalLoanRate * (1 + mk / 100); ovRule = `正常贷款年化利率上浮${mk}%`; }
+    else { ovRate = parseFloat(document.getElementById('ind_overdueFixed').value) / 100; ovRule = `固定年利率 ${(ovRate*100).toFixed(2)}%`; }
+    const base = document.getElementById('ind_overdueBase').value;
+    contingentCosts.push({ name: '逾期罚息', rate: ovRate, rule: ovRule, base, rateStr: (ovRate*100).toFixed(2) + '%' });
+  }
+
+  const muType = document.getElementById('ind_misuseType').value;
+  if (muType !== 'none') {
+    let muRate, muRule;
+    if (muType === 'markup') { const mk = parseFloat(document.getElementById('ind_misuseMarkup').value); muRate = normalLoanRate * (1 + mk / 100); muRule = `正常贷款年化利率上浮${mk}%`; }
+    else { muRate = parseFloat(document.getElementById('ind_misuseFixed').value) / 100; muRule = `固定年利率 ${(muRate*100).toFixed(2)}%`; }
+    contingentCosts.push({ name: '挪用罚息', rate: muRate, rule: muRule, base: '未按合同约定用途使用的贷款本金', rateStr: (muRate*100).toFixed(2) + '%' });
+  }
+
+  const ppType = document.getElementById('ind_prepayType').value;
+  if (ppType !== 'none') {
+    let ppDesc;
+    if (ppType === 'interest_diff') { const reRate = parseFloat(document.getElementById('ind_prepayRate').value); ppDesc = `提前结清时，按照年化利率 ${reRate.toFixed(2)}% 重新计算的贷款利息减去实际已还利息，作为提前还款违约金`; }
+    else { const ratio = parseFloat(document.getElementById('ind_prepayRatio').value); ppDesc = `按剩余本金的 ${ratio.toFixed(2)}% 收取提前还款违约金`; }
+    contingentCosts.push({ name: '提前还款违约金', rate: null, rule: ppDesc, base: '剩余贷款本金', rateStr: '—' });
+  }
+
+  const otType = document.getElementById('ind_otherPenalty').value;
+  if (otType !== 'none') {
+    let otRate, otRule;
+    const baseDesc = document.getElementById('ind_otherPenaltyBase').value;
+    if (otType === 'markup') { const mk = parseFloat(document.getElementById('ind_otherPenaltyMarkup').value); otRate = normalLoanRate * (1 + mk / 100); otRule = `正常贷款年化利率上浮${mk}%`; }
+    else { otRate = comprehensive; otRule = '正常履约年化综合融资成本'; }
+    contingentCosts.push({ name: '其他违约金', rate: otRate, rule: otRule, base: baseDesc, rateStr: otRate ? (otRate*100).toFixed(2) + '%' : '—' });
+  }
+
+  const panel = document.getElementById('pub-panel-ind'); panel.classList.add('visible');
+
+  document.getElementById('ind_resultSummary').innerHTML = `
+    <div class="label">正常履约年化综合融资成本</div>
+    <div class="value">${fmtPct(comprehensive)}</div>
+    <div class="sub-value">贷款利息年化率 ${fmtPct(interestRate)} + 费用年化率 ${fmtPct(totalFeeRate)}</div>
+    <div class="result-breakdown">
+      <div class="item"><div class="lbl">贷款本金</div><div class="val">${fmtMoney(principal)}</div></div>
+      <div class="item"><div class="lbl">贷款期限</div><div class="val">${termMonths} 个月</div></div>
+      <div class="item"><div class="lbl">还款方式</div><div class="val">${method}</div></div>
+    </div>`;
+
+  document.getElementById('ind_loanMeta').innerHTML = `
+    <div><div class="m-label">贷款本金</div><div class="m-value">${fmtMoney(principal)} 元</div></div>
+    <div><div class="m-label">名义年利率</div><div class="m-value">${annualRate.toFixed(2)}%</div></div>
+    <div><div class="m-label">贷款期限</div><div class="m-value">${termMonths} 个月</div></div>
+    <div><div class="m-label">还款方式</div><div class="m-value">${method}</div></div>
+    <div><div class="m-label">起始日</div><div class="m-value">${startDate}</div></div>
+    <div><div class="m-label">还款频率</div><div class="m-value">${freq}</div></div>
+    <div><div class="m-label">利息计算</div><div class="m-value">名义月差 / 单利</div></div>
+    <div><div class="m-label">费用测算</div><div class="m-value">IRR内部收益率法</div></div>`;
+
+  const rc = document.getElementById('ind_repayScheduleCard');
+  if (schedule.length <= 60) {
+    rc.style.display = 'block';
+    let h = '<thead><tr><th>期数</th><th>还款日期</th><th>本金（元）</th><th>利息（元）</th><th>合计（元）</th></tr></thead><tbody>';
+    for (let i = 0; i < schedule.length; i++) { const r = schedule[i]; h += `<tr><td>${r.period}</td><td>${r.date}</td><td>${fmtMoney(r.principal)}</td><td>${fmtMoney(r.interest)}</td><td><b>${fmtMoney(r.total)}</b></td></tr>`; }
+    document.getElementById('ind_repayScheduleTable').innerHTML = h + '</tbody>';
+  } else rc.style.display = 'none';
+
+  let normalHTML = `<div class="normal-block"><h4>贷款利息</h4><div class="nb-rate">年化率 ${fmtPct(interestRate)}</div><div style="font-size:13px;color:#666;">名义年利率 ${annualRate.toFixed(2)}%，还款方式：${method}</div></div>`;
+  feeResults.forEach(f => {
+    const tag = f.type === 'upfront' ? '<span class="tag tag-upfront">期初一次性</span>' : '<span class="tag tag-periodic">周期性支付</span>';
+    normalHTML += `<div class="normal-block"><h4>${f.name} ${tag}</h4><div class="nb-rate">年化率 ${fmtPct(f.annualizedRate)}</div><div style="font-size:13px;color:#666;">收取主体：${f.subject || '—'}，费用总额：${fmtMoney(f.totalAmount)} 元</div></div>`;
+  });
+  if (!feeResults.length) normalHTML += '<div class="normal-block"><div style="font-size:13px;color:#666;">正常履约无贷款利息以外的其他成本</div></div>';
+  document.getElementById('ind_normalCostDetail').innerHTML = normalHTML;
+
+  let contHTML = '';
+  if (contingentCosts.length === 0) contHTML = '<div class="contingent-block"><div style="font-size:13px;color:#666;">未配置或有成本</div></div>';
+  contingentCosts.forEach(cc => {
+    contHTML += `<div class="contingent-block"><h4>${cc.name}</h4><div class="cb-rate">${cc.rateStr}</div><div class="cb-rule">计算规则：${cc.rule}</div><div class="cb-base">计收基数：${cc.base}</div></div>`;
+  });
+  document.getElementById('ind_contingentDetail').innerHTML = contHTML;
+
+  const sumTbody = document.querySelector('#ind_summaryTable tbody');
+  let sh = '';
+  sh += `<tr><td>贷款利息年化率（正常履约）</td><td>${fmtPct(interestRate)}</td><td>IRR内部收益率法计算</td></tr>`;
+  feeResults.forEach(f => { sh += `<tr><td>${f.name}（正常履约）</td><td>${fmtPct(f.annualizedRate)}</td><td>${f.subject || ''}，${f.type === 'upfront' ? '期初一次性' : '周期性支付'}</td></tr>`; });
+  sh += `<tr style="font-weight:bold;background:#fafafa;"><td>正常履约年化综合融资成本</td><td>${fmtPct(comprehensive)}</td><td>利息 + 费用</td></tr>`;
+  contingentCosts.forEach(cc => { sh += `<tr><td>${cc.name}（或有成本）</td><td>${cc.rateStr}</td><td>${cc.rule}；基数：${cc.base}</td></tr>`; });
+  sumTbody.innerHTML = sh;
+
+  document.getElementById('ind_calcDate').textContent = new Date().toLocaleString('zh-CN');
+  setTimeout(() => panel.scrollIntoView({ behavior: 'smooth' }), 100);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  ent_addFee('upfront');
+  ent_addFee('periodic');
+});
+</script>
+</body>
+</html>

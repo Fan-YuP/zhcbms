@@ -1,0 +1,16 @@
+# 系统/编辑器文件
+Thumbs.db
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# 日志与临时文件
+*.log
+*.tmp
+
+# 启动脚本
+*.bat
+*.cmd
+
+# Nginx部署手册等内部文档（不提交）

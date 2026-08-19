@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>企业贷款综合融资成本清单</title>
+<script src="lib/html2canvas.min.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: "SimSun", "Microsoft YaHei", "PingFang SC", serif; background: #d4d4d4; color: #000; font-size: 12px; }
+  .page-toolbar { position: sticky; top: 0; z-index: 100; background: #1a5490; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.15); flex-wrap: wrap; gap: 8px; }
+  .page-toolbar .title { font-size: 16px; font-weight: 600; }
+  .page-toolbar .actions { display: flex; gap: 8px; }
+  .page-toolbar button { padding: 6px 16px; border: 1px solid #fff; background: transparent; color: #fff; border-radius: 3px; cursor: pointer; font-size: 13px; }
+  .page-toolbar button:hover { background: #fff; color: #1a5490; }
+
+  .paper-wrap { padding: 20px; display: flex; justify-content: center; }
+  .paper { background: #fff; width: 100%; max-width: 1100px; padding: 18px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+
+  /* 主标题 */
+  .form-title { text-align: center; font-size: 18px; font-weight: 700; padding: 4px 0 14px; letter-spacing: 2px; }
+
+  /* 章节标题 */
+  .section-title { font-weight: 700; font-size: 12px; padding: 4px 0; }
+
+  /* 表格基础样式（样表风格） */
+  table.form-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 4px; }
+  table.form-table th, table.form-table td { border: 1px solid #000; padding: 3px 4px; font-size: 11px; vertical-align: middle; line-height: 1.3; word-wrap: break-word; }
+  table.form-table th { font-weight: 700; text-align: center; background: #fff; }
+  table.form-table td { text-align: center; }
+  table.form-table td.label { text-align: center; font-weight: 700; background: #fff; }
+  table.form-table td.left { text-align: left; }
+  table.form-table td.right { text-align: right; }
+
+  /* 可编辑输入框（无边框，融入单元格） */
+  .cell-input { width: 100%; border: none; background: transparent; text-align: center; font-size: 11px; outline: none; padding: 1px 2px; font-family: inherit; }
+  .cell-input.left { text-align: left; }
+  .cell-input.right { text-align: right; }
+  .cell-input:focus { background: #fff8e1; }
+  .cell-input:read-only { background: #f5f5f5; color: #333; font-weight: 600; }
+
+  /* 选择控件（无边框） */
+  .cell-select { width: 100%; border: none; background: transparent; font-size: 11px; outline: none; padding: 1px 2px; text-align: center; text-align-last: center; font-family: inherit; }
+  .cell-select:focus { background: #fff8e1; }
+
+  /* 复选框组 */
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-items: center; font-size: 11px; }
+  .checkbox-group label { display: inline-flex; align-items: center; gap: 1px; cursor: pointer; }
+  .checkbox-group input { margin: 0; }
+
+  /* 顶部基本信息表的特殊布局 */
+  .info-table td { padding: 4px 4px; }
+
+  /* 签字行 */
+  .signature-row td { height: 40px; }
+  .signature-line { border: none; border-bottom: 1px solid #000; display: inline-block; min-width: 140px; }
+
+  /* 填表说明 */
+  .instructions { font-size: 11px; line-height: 1.7; padding: 8px 0 0; text-align: justify; }
+  .instructions p { text-indent: 0; margin: 0; }
+
+  /* 操作按钮（用于动态行） */
+  .row-action { display: flex; gap: 6px; justify-content: center; align-items: center; }
+  .row-action button { padding: 2px 8px; font-size: 11px; border: 1px solid #999; background: #fff; cursor: pointer; border-radius: 3px; }
+  .row-action button.add { background: #52c41a; color: #fff; border-color: #52c41a; }
+  .row-action button.del { background: #ff4d4f; color: #fff; border-color: #ff4d4f; }
+
+  /* 合计行强调 */
+  .total-row td { font-weight: 700; background: #fafafa; }
+
+  /* 备注（斜线单元格） */
+  .diag-cell { background-image: linear-gradient(to top right, transparent calc(50% - 1px), #000 calc(50% - 1px), #000 calc(50% + 1px), transparent calc(50% + 1px)); position: relative; }
+  .diag-cell .tl { position: absolute; top: 2px; left: 4px; font-size: 11px; }
+  .diag-cell .br { position: absolute; bottom: 2px; right: 4px; font-size: 11px; }
+
+  /* 备注小字 */
+  .sub-note { font-size: 11px; color: #333; padding: 2px 4px; line-height: 1.5; }
+
+  @media print {
+    body { background: #fff; }
+    .page-toolbar { display: none; }
+    .paper { box-shadow: none; max-width: 100%; }
+    .row-action { display: none; }
+  }
+
+  @media (max-width: 768px) {
+    .paper { padding: 10px; }
+    table.form-table th, table.form-table td { font-size: 11px; padding: 3px 4px; }
+    .page-toolbar .title { font-size: 14px; }
+    .page-toolbar button { padding: 4px 10px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-toolbar no-print">
+  <div class="title">企业贷款综合融资成本清单</div>
+  <div class="actions">
+    <button onclick="window.print()">打印</button>
+    <button onclick="exportPDF()">导出PDF</button>
+    <button onclick="resetForm()">重置表单</button>
+  </div>
+</div>
+
+<div class="paper-wrap">
+  <div class="paper" id="paper">
+
+    <div class="form-title">企业贷款综合融资成本清单</div>
+
+    <!-- ============== 一、企业贷款利率 ============== -->
+    <div class="section-title">一、企业贷款利率</div>
+    <table class="form-table info-table">
+      <colgroup>
+        <col style="width: 10%"><col style="width: 13%"><col style="width: 11%"><col style="width: 12%"><col style="width: 13%"><col style="width: 15%"><col style="width: 10%"><col style="width: 16%">
+      </colgroup>
+      <!-- 第1行：银行名称 | 贷款本金 | 贷款年化利率 | 担保方式（标签+选项两栏） -->
+      <tr>
+        <td class="label">银行名称</td>
+        <td><input class="cell-input" type="text" id="bankName" placeholder="请输入银行名称"></td>
+        <td class="label">贷款本金（万元）</td>
+        <td><input class="cell-input right" type="number" id="loanPrincipal" step="0.01" placeholder="0.00" oninput="recalcAll()"></td>
+        <td class="label">贷款年化利率（%）</td>
+        <td><input class="cell-input right" type="number" id="annualRate" step="0.0001" placeholder="0.00" oninput="recalcAll()"></td>
+        <td class="label">担保方式</td>
+        <td style="text-align:left; padding:4px 6px;">
+          <div class="checkbox-group" style="display:flex; flex-wrap:wrap; gap:4px; justify-content:flex-start;">
+            <label><input type="checkbox" id="guar1"> 信用</label>
+            <label><input type="checkbox" id="guar2"> 保证</label>
+            <label><input type="checkbox" id="guar3"> 抵押</label>
+            <label><input type="checkbox" id="guar4"> 质押</label>
+            <label style="display:inline-flex; align-items:center; gap:2px; white-space:nowrap;">其他<input type="text" class="cell-input" id="guarOther" style="width:80px; border:none; border-bottom:1px solid #000; border-radius:0; padding:0 2px; text-align:left;" placeholder="（需具体说明）"></label>
+          </div>
+        </td>
+      </tr>
+      <!-- 第2行：企业/借款人名称 | 贷款期限 | 还款方式 | 还款周期（标签+填写栏两栏，去掉radio改为输入框） -->
+      <tr>
+        <td class="label">企业/借款人名称</td>
+        <td><input class="cell-input" type="text" id="borrowerName" placeholder="请输入企业名称"></td>
+        <td class="label">贷款期限（日/月/年）</td>
+        <td>
+          <div style="display:flex; gap:4px; align-items:center; justify-content:center;">
+            <input class="cell-input right" type="number" id="loanTermValue" step="1" placeholder="0" style="width:50%" oninput="recalcAll()">
+            <select class="cell-select" id="loanTermUnit" onchange="recalcAll()" style="width:45%">
+              <option value="日">日</option><option value="月" selected>月</option><option value="年">年</option>
+            </select>
+          </div>
+        </td>
+        <td class="label">还款方式</td>
+        <td>
+          <select class="cell-select" id="repayMethod" onchange="recalcAll()">
+            <option value="到期一次性还本付息">到期一次性还本付息</option>
+            <option value="等额本息">等额本息</option>
+            <option value="等额本金">等额本金</option>
+            <option value="按月付息到期还本">按月付息到期还本</option>
+            <option value="等本等费">等本等费</option>
+          </select>
+        </td>
+        <td class="label">还款周期</td>
+        <td><input class="cell-input" type="text" id="repayCycleText" placeholder="如：按月"></td>
+      </tr>
+      <!-- 第3行：企业类型 | 企业性质 | 个人经营性贷款（如是）（标签+选项两栏分开） -->
+      <tr>
+        <td class="label">企业类型</td>
+        <td style="text-align:left; padding:4px 6px;">
+          <div class="checkbox-group" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start;">
+            <label><input type="radio" name="entType" value="大型"> 大型</label>
+            <label><input type="radio" name="entType" value="中型"> 中型</label>
+            <label><input type="radio" name="entType" value="小型"> 小型</label>
+            <label><input type="radio" name="entType" value="微型"> 微型</label>
+          </div>
+        </td>
+        <td class="label">企业性质</td>
+        <td style="text-align:left; padding:4px 6px;">
+          <div class="checkbox-group" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start;">
+            <label><input type="radio" name="entNature" value="国有控股"> 国有控股</label>
+            <label><input type="radio" name="entNature" value="非国有控股"> 非国有控股</label>
+          </div>
+        </td>
+        <td class="label" colspan="2">个人经营性贷款（如是）</td>
+        <td colspan="2" style="text-align:left; padding:4px 6px;">
+          <div class="checkbox-group" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start;">
+            <label><input type="checkbox" id="isInd1"> 个体工商户</label>
+            <label><input type="checkbox" id="isInd2"> 小微企业主</label>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- ============== 二、企业贷款其他融资成本 ============== -->
+    <div class="section-title" style="margin-top:8px;">二、企业贷款其他融资成本</div>
+    <table class="form-table" id="feesTable">
+      <colgroup>
+        <col style="width: 5%">
+        <col style="width: 4%">
+        <col style="width: 10%">
+        <col style="width: 3%">
+        <col style="width: 3%">
+        <col style="width: 9%">
+        <col style="width: 7%">
+        <col style="width: 7%">
+        <col style="width: 7%">
+        <col style="width: 7%">
+        <col style="width: 7%">
+        <col style="width: 6%">
+        <col style="width: 7%">
+        <col style="width: 8%">
+        <col style="width: 7%">
+        <col style="width: 3%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th rowspan="2">收费方</th>
+          <th rowspan="2">项目序号</th>
+          <th rowspan="2">成本项目名称</th>
+          <th colspan="2">是否涉及该项费用<br><span style="font-weight:normal; font-size:10px;">（请在相应栏中打√）</span></th>
+          <th rowspan="2">收费机构名称</th>
+          <th rowspan="2">收费总额（元）</th>
+          <th colspan="3">费用分担情况（<span style="font-weight:normal; font-size:10px;">以下三项之和应等于收费总额</span>）</th>
+          <th colspan="3">企业实际支付费用方式<br><span style="font-weight:normal; font-size:10px;">（支付方式包括一次性支付、周期性支付和其他方式具体列明）</span></th>
+          <th rowspan="2">融资成本年化率<br><span style="font-weight:normal; font-size:10px;">（按企业实际承担计算，%）</span></th>
+          <th rowspan="2">备注</th>
+          <th rowspan="2" style="background:#fafafa;"></th>
+        </tr>
+        <tr>
+          <th>是</th><th>否</th>
+          <th>企业实际承担金额（元）</th><th>银行承担金额（元）</th><th>其他承担金额<br>（如政府减免等，元）</th>
+          <th>支付方式</th><th>支付周期</th><th>每期金额（元）</th>
+        </tr>
+      </thead>
+      <tbody id="feesBody">
+        <!-- 动态生成 -->
+      </tbody>
+    </table>
+
+    <div style="text-align:left; margin: 4px 0 8px;">
+      <button onclick="addFeeRow()" style="padding:4px 12px; font-size:12px; background:#52c41a; color:#fff; border:none; border-radius:3px; cursor:pointer;">+ 添加费用项</button>
+      <span style="margin-left: 16px; font-size: 11px; color: #666;">注：□实际承担年化率大于银行承担年化率（请在备注中标明）</span>
+    </div>
+
+    <!-- ============== 三、企业综合融资成本合计 ============== -->
+    <div class="section-title" style="margin-top:8px;">三、企业综合融资成本合计</div>
+    <table class="form-table">
+      <colgroup>
+        <col style="width: 70%"><col style="width: 15%"><col style="width: 15%">
+      </colgroup>
+      <tbody>
+        <tr>
+          <td class="label" style="font-weight:normal;">企业综合融资成本合计（贷款年化利率+企业实际承担的逐项其他融资成本年化率）</td>
+          <td><span id="totalRate">—</span></td>
+          <td></td>
+        </tr>
+        <tr>
+          <td class="label" style="font-weight:normal;">其中，银行收取部分（贷款年化利率+银行收取的企业实际承担的逐项其他融资成本年化率）</td>
+          <td><span id="bankPortion">—</span></td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ============== 签字行（无标题、无表格，对标样图） ============== -->
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; padding:6px 4px; font-size:12px;">
+      <div style="display:flex; align-items:center; flex:1;">
+        <span style="white-space:nowrap;">客户经办人签字：</span>
+        <input type="text" id="signBorrower" style="border:none; border-bottom:1px solid #000; flex:1; min-width:100px; padding:2px 4px; font-size:12px; font-family:inherit; background:transparent; outline:none;">
+      </div>
+      <div style="display:flex; align-items:center; flex:1.2; padding:0 12px;">
+        <span style="white-space:nowrap;">银行签字（加盖业务章）：</span>
+        <input type="text" id="signBank" style="border:none; border-bottom:1px solid #000; flex:1; min-width:120px; padding:2px 4px; font-size:12px; font-family:inherit; background:transparent; outline:none;">
+      </div>
+      <div style="display:flex; align-items:center; flex:0.8;">
+        <span style="white-space:nowrap;">填表日期：</span>
+        <input type="date" id="signDate" style="border:none; border-bottom:1px solid #000; width:130px; padding:2px 4px; font-size:12px; font-family:inherit; background:transparent; outline:none;">
+      </div>
+    </div>
+
+    <!-- ============== 填表说明（绿色小字，无标题，对标样图） ============== -->
+    <div class="instructions" style="color:#006400; font-size:10px; line-height:1.6; padding:6px 0 0; text-align:justify;">
+      <p>填表说明：1. 此表仅作为明示企业综合融资成本的参考，不影响企业正常的贷款授信审批，不作为企业与银行之间相关贷款要素的确认或约定。2. 借款人实际融资成本可能因贷款行为变动等原因而与所明示融资本息不同，不影响贷款正常履约。3. 表中贷款包括面向各类企业发放的企业贷款及小微企业主、个体工商户经营性贷款，含纳入贷款统计的一般贷款、银团贷款、贸易融资等业务，不含票据贴现。4. 若明示对象为小微企业主和个体工商户，则在"个人经营性贷款"栏相应填写小微企业主或个体工商户，企业/借款人名称填写借款人名称，企业类型和企业性质两栏均不需填写。5. 企业性质填写国有控股、非国有控股，国有控股含有绝对控股和国有相对控股两种形式，非国有控股包括集体控股、私人控股、港澳台商控股和外商控股。6. 如企业办理多笔贷款，按单笔贷款进行明示。7. 收费、支付方相同的其他费用，请分别列明，请勿重复。8. 还款方式包括一次性还本、等额本金、等额本息、其他（填其他，请具体说明）。9. 银团贷款费用主要包括安排费、代理费、参加费等，其中安排费和参加费多为一次性收取，代理费多为周期性收取，如银团贷款费用收取涉及两种及以上，请分别列明。10. 常见的费用支付方式，可以分为一次性支付和周期性支付费用，其中，一次性支付费用指借款人在贷款发放前或发放初期一次性付清的费用，如抵押评估费、抵押登记费、公证费、担保费（部分情形）、供应链平台服务费、过桥费、中介服务费等。周期性支付费用指费用随贷款的还款周期（如，每月、每季、每年）分期支付，如担保费（部分情形）、保险费、动产质押监管费等。11. 支付周期为周期支付费用的周期（月、季、年等），支付周期×每期金额=企业实际承担总金额；如为一次性支付的费用，直接在每期金额项下填写企业实际承担的费用额度。12. 第三方收取但由银行承担的费用，由银行负责填写具体承担的费用名称和金额。13. 此表中银行为银行业金融机构。14. 银行、企业各自为所填写数据的真实性负责。</p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ===================== 工具函数 =====================
+const fmtMoney = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPct = v => (v == null || isNaN(v)) ? '—' : (Number(v) * 100).toFixed(2) + '%';
+
+// IRR 求解（period-based, 月利率 * 12 = 年化）
+function solveIRR(cfs) {
+  const npv = R => cfs.reduce((s, cf) => s + cf.amt / Math.pow(1 + R, cf.offset), 0);
+  let lo = -0.999, hi = 10, fHi = npv(hi);
+  if (fHi > 0) { hi = 100; fHi = npv(hi); }
+  if (fHi > 0) { hi = 1000; }
+  for (let i = 0; i < 500; i++) {
+    const mid = (lo + hi) / 2, fMid = npv(mid);
+    if (Math.abs(fMid) < 1e-12) return mid;
+    if (fMid * npv(lo) <= 0) hi = mid; else lo = mid;
+    if ((hi - lo) / 2 < 1e-15) break;
+  }
+  return (lo + hi) / 2;
+}
+
+// ===================== 还款计划生成 =====================
+function getMonths() {
+  const v = parseFloat(document.getElementById('loanTermValue').value) || 0;
+  const u = document.getElementById('loanTermUnit').value;
+  if (u === '日') return v / 30;
+  if (u === '年') return v * 12;
+  return v;
+}
+function getCycle() {
+  const v = (document.getElementById('repayCycleText')?.value || '').trim();
+  if (v.includes('季')) return '按季';
+  if (v.includes('年')) return '按年';
+  if (v.includes('到期') || v.includes('一次')) return '到期一次';
+  return '按月';
+}
+function getN() {
+  // 每期月数：按月=1, 按季=3, 按年=12, 到期一次=总月数
+  const cycle = getCycle();
+  if (cycle === '按月') return 1;
+  if (cycle === '按季') return 3;
+  if (cycle === '按年') return 12;
+  return getMonths();
+}
+function periodsPerYear() {
+  const cycle = getCycle();
+  if (cycle === '按月') return 12;
+  if (cycle === '按季') return 4;
+  if (cycle === '按年') return 1;
+  return 12 / Math.max(getMonths() / 12, 0.01);
+}
+// 在 IRR 求解时把 period-based 偏移转成"年"单位
+// schedule.offset = 期数 (1, 2, 3, ...)，每期间隔 = n 个月 (n=getN())
+// 偏移(年) = offset × n / 12
+// - 按月 (n=1): offset × 1/12
+// - 按季 (n=3): offset × 3/12 = offset/4
+// - 按年 (n=12): offset × 1
+// - 到期一次: schedule.offset 是月份，÷12
+function toYearOffsets(cf) {
+  const cycle = getCycle();
+  if (cycle === '到期一次') {
+    return cf.map(c => ({ offset: c.offset / 12, amt: c.amt }));
+  }
+  const n = getN();
+  return cf.map(c => ({ offset: c.offset * n / 12, amt: c.amt }));
+}
+
+function generateSchedule(principal, annualRatePct, months, method, periodsPerYearN) {
+  // rPeriod = 年化利率 / 每年期数 = 每期利率
+  // 例如 4.75% 年化, 按月: rPeriod = 0.0475/12 = 0.003958
+  const rPeriod = (annualRatePct / 100) / periodsPerYearN;
+  const N = Math.max(1, Math.round(months / periodsPerYearN));
+  const schedule = []; let remain = principal;
+
+  if (method === '等额本息') {
+    const C = principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
+    const ps = []; let tmp = principal;
+    for (let i = 0; i < N - 1; i++) { const int = tmp * rPeriod; ps.push(C - int); tmp -= (C - int); }
+    ps.push(tmp);
+    for (let i = 0; i < N; i++) {
+      const interest = remain * rPeriod; const pp = ps[i]; remain -= pp;
+      schedule.push({ period: i + 1, principal: pp, interest, total: pp + interest, offset: i + 1 });
+    }
+  } else if (method === '等额本金') {
+    const pp = principal / N;
+    for (let i = 0; i < N; i++) {
+      const interest = remain * rPeriod; const pay = (i === N - 1) ? remain : pp; remain -= pay;
+      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 });
+    }
+  } else if (method === '按月付息到期还本') {
+    for (let i = 0; i < N; i++) {
+      const interest = remain * rPeriod; const pay = (i === N - 1) ? principal : 0; remain -= pay;
+      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 });
+    }
+  } else if (method === '到期一次性还本付息') {
+    const interest = principal * (annualRatePct / 100) * (months / 12);
+    schedule.push({ period: 1, principal, interest, total: principal + interest, offset: N });
+  } else if (method === '等本等费') {
+    const pp = principal / N;
+    const C = principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
+    const feePerPeriod = C - pp;
+    for (let i = 0; i < N; i++) {
+      const interest = feePerPeriod; const pay = (i === N - 1) ? remain : pp; remain -= pay;
+      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 });
+    }
+  }
+  return schedule;
+}
+
+function calcLoanIRR(principal, annualRatePct, method) {
+  const months = getMonths();
+  const ppy = periodsPerYear();
+  const schedule = generateSchedule(principal, annualRatePct, months, method, ppy);
+  const cf = [{ offset: 0, amt: principal }];
+  for (const r of schedule) cf.push({ offset: r.offset, amt: -(r.principal + r.interest) });
+  // 统一用 toYearOffsets 转换
+  return solveIRR(toYearOffsets(cf));
+}
+
+// 计算单项费用年化率（按企业实际承担部分计算）
+function calcFeeRate(principal, annualRatePct, method, totalFeeAmount, isUpfront) {
+  const months = getMonths();
+  const ppy = periodsPerYear();
+  const schedule = generateSchedule(principal, annualRatePct, months, method, ppy);
+  const cf = [{ offset: 0, amt: principal }];
+  if (isUpfront) cf[0].amt -= totalFeeAmount;
+  for (const r of schedule) cf.push({ offset: r.offset, amt: -(r.principal + r.interest) });
+  if (!isUpfront) {
+    // 分期支付：每期付费用
+    const periods = Math.min(schedule.length, Math.round(months / (12 / ppy)));
+    for (let i = 0; i < periods; i++) cf[i + 1].amt -= (totalFeeAmount / periods);
+  }
+  return solveIRR(toYearOffsets(cf));
+}
+
+// ===================== 费用行管理 =====================
+let feeRowId = 0;
+const feeRows = [];
+
+function defaultFeeRowData() {
+  return {
+    id: ++feeRowId,
+    party: '银行（银行承担）',
+    seqNo: '',
+    name: '',
+    isInvolved: '否',
+    institutionName: '',
+    totalAmount: 0,
+    enterpriseShare: 0,
+    bankShare: 0,
+    otherShare: 0,
+    payMethod: '一次性支付',
+    payCycle: '—',
+    periodAmount: 0,
+    note: ''
+  };
+}
+
+function addFeeRow(data) {
+  const row = data ? { ...data } : defaultFeeRowData();
+  row.id = ++feeRowId;
+  feeRows.push(row);
+  renderFeeRow(row);
+  recalcAll();
+}
+
+function deleteFeeRow(id) {
+  const idx = feeRows.findIndex(r => r.id === id);
+  if (idx >= 0) {
+    feeRows.splice(idx, 1);
+    const tr = document.querySelector(`tr[data-fee-id="${id}"]`);
+    if (tr) tr.remove();
+    recalcAll();
+  }
+}
+
+function renderFeeRow(row) {
+  const tbody = document.getElementById('feesBody');
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-fee-id', row.id);
+  tr.innerHTML = `
+    <td>
+      <select class="cell-select" data-field="party">
+        <option value="银行（银行填写）">银行（银行填写）</option>
+        <option value="第三方（银行承担项目，银行填）">第三方（银行承担）</option>
+        <option value="第三方（企业填写）">第三方（企业填写）</option>
+      </select>
+    </td>
+    <td><input class="cell-input" data-field="seqNo" type="text"></td>
+    <td><input class="cell-input left" data-field="name" type="text" placeholder="如：担保费、保险费..."></td>
+    <td><input type="radio" data-field="isInvolved" value="是" name="involved-${row.id}"></td>
+    <td><input type="radio" data-field="isInvolved" value="否" name="involved-${row.id}" checked></td>
+    <td><input class="cell-input left" data-field="institutionName" type="text" placeholder="收费机构名称"></td>
+    <td><input class="cell-input right" data-field="totalAmount" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
+    <td><input class="cell-input right" data-field="enterpriseShare" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
+    <td><input class="cell-input right" data-field="bankShare" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
+    <td><input class="cell-input right" data-field="otherShare" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
+    <td>
+      <select class="cell-select" data-field="payMethod" onchange="onFeeInput(${row.id})">
+        <option value="一次性支付">一次性支付</option>
+        <option value="周期性支付">周期性支付</option>
+        <option value="其他方式">其他方式</option>
+      </select>
+    </td>
+    <td>
+      <select class="cell-select" data-field="payCycle" onchange="onFeeInput(${row.id})">
+        <option value="—">—</option>
+        <option value="月">月</option>
+        <option value="季">季</option>
+        <option value="年">年</option>
+      </select>
+    </td>
+    <td><input class="cell-input right" data-field="periodAmount" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
+    <td><span data-fee-rate style="font-weight:600;">—</span></td>
+    <td><input class="cell-input left" data-field="note" type="text" placeholder=""></td>
+    <td style="text-align:center; padding:2px;">
+      <button class="del" onclick="deleteFeeRow(${row.id})" style="padding:2px 6px; font-size:11px; background:#ff4d4f; color:#fff; border:none; border-radius:2px; cursor:pointer;">删</button>
+    </td>
+  `;
+  // 设置初始值
+  tr.querySelector(`[data-field="party"]`).value = row.party;
+  tr.querySelector(`[data-field="seqNo"]`).value = row.seqNo;
+  tr.querySelector(`[data-field="name"]`).value = row.name;
+  tr.querySelector(`input[data-field="isInvolved"][value="${row.isInvolved}"]`).checked = true;
+  tr.querySelector(`[data-field="institutionName"]`).value = row.institutionName;
+  tr.querySelector(`[data-field="totalAmount"]`).value = row.totalAmount || '';
+  tr.querySelector(`[data-field="enterpriseShare"]`).value = row.enterpriseShare || '';
+  tr.querySelector(`[data-field="bankShare"]`).value = row.bankShare || '';
+  tr.querySelector(`[data-field="otherShare"]`).value = row.otherShare || '';
+  tr.querySelector(`[data-field="payMethod"]`).value = row.payMethod;
+  tr.querySelector(`[data-field="payCycle"]`).value = row.payCycle;
+  tr.querySelector(`[data-field="periodAmount"]`).value = row.periodAmount || '';
+  tr.querySelector(`[data-field="note"]`).value = row.note;
+  tbody.appendChild(tr);
+}
+
+function readFeeRowFromDOM(tr) {
+  const id = parseInt(tr.getAttribute('data-fee-id'));
+  const get = field => {
+    const el = tr.querySelector(`[data-field="${field}"]`);
+    if (!el) return null;
+    if (el.type === 'radio') {
+      const sel = tr.querySelector(`input[data-field="${field}"]:checked`);
+      return sel ? sel.value : null;
+    }
+    if (el.type === 'number') return parseFloat(el.value) || 0;
+    return el.value;
+  };
+  return {
+    id,
+    party: get('party'),
+    seqNo: get('seqNo'),
+    name: get('name'),
+    isInvolved: get('isInvolved'),
+    institutionName: get('institutionName'),
+    totalAmount: get('totalAmount'),
+    enterpriseShare: get('enterpriseShare'),
+    bankShare: get('bankShare'),
+    otherShare: get('otherShare'),
+    payMethod: get('payMethod'),
+    payCycle: get('payCycle'),
+    periodAmount: get('periodAmount'),
+    note: get('note')
+  };
+}
+
+function onFeeInput(id) {
+  const idx = feeRows.findIndex(r => r.id === id);
+  if (idx < 0) return;
+  const tr = document.querySelector(`tr[data-fee-id="${id}"]`);
+  if (!tr) return;
+  feeRows[idx] = readFeeRowFromDOM(tr);
+  recalcAll();
+}
+
+// ===================== 总重算 =====================
+function recalcAll() {
+  const principal = (parseFloat(document.getElementById('loanPrincipal').value) || 0) * 10000; // 万元 -> 元
+  const annualRate = parseFloat(document.getElementById('annualRate').value) || 0;
+  const method = document.getElementById('repayMethod').value;
+
+  // 1. 贷款利息年化（实际为本金IRR，但样表中即为名义年化利率）
+  // 对于一次性还本付息：年化 = 名义利率；其他方式：用IRR校验
+  let loanAnnualized = annualRate;
+  if (principal > 0 && annualRate > 0 && getMonths() > 0) {
+    try {
+      const irr = calcLoanIRR(principal, annualRate, method);
+      // 如果方法与到期一次性还本付息等价，用IRR；否则按名义
+      loanAnnualized = irr * 100; // 转为百分比
+    } catch (e) { loanAnnualized = annualRate; }
+  }
+
+  // 2. 逐项计算费用年化
+  let totalFeeRate = 0;       // 企业实际承担的逐项费用年化合计
+  let bankPortionRate = 0;    // 银行收取 + 企业实际承担
+  feeRows.forEach(row => {
+    const tr = document.querySelector(`tr[data-fee-id="${row.id}"]`);
+    if (!tr) return;
+    const rateSpan = tr.querySelector('[data-fee-rate]');
+    if (row.isInvolved !== '是' || !row.totalAmount || row.totalAmount <= 0) {
+      rateSpan.textContent = '—';
+      return;
+    }
+    const enterpriseRatio = row.totalAmount > 0 ? (row.enterpriseShare || 0) / row.totalAmount : 0;
+    if (enterpriseRatio <= 0) {
+      rateSpan.textContent = '0.00%';
+      return;
+    }
+    let feeRate = 0;
+    try {
+      feeRate = calcFeeRate(principal, annualRate, method, row.totalAmount, row.payMethod === '一次性支付');
+    } catch (e) { feeRate = 0; }
+    // 该项费用中"企业实际承担"部分对应的年化率
+    const actualRate = (feeRate - (annualRate / 100)) * enterpriseRatio;
+    rateSpan.textContent = (actualRate * 100).toFixed(2) + '%';
+    totalFeeRate += actualRate;
+    // 银行收取部分 = 收费方为"银行"的项
+    if (row.party && row.party.startsWith('银行')) {
+      bankPortionRate += actualRate;
+    }
+  });
+
+  // 3. 综合融资成本年合计
+  const totalRate = (loanAnnualized / 100) + totalFeeRate;
+  document.getElementById('totalRate').textContent = (totalRate * 100).toFixed(2) + '%';
+  // 4. 银行收取部分
+  const bankPortion = (loanAnnualized / 100) + bankPortionRate;
+  document.getElementById('bankPortion').textContent = (bankPortion * 100).toFixed(2) + '%';
+}
+
+// ===================== 初始化预置费用行 =====================
+function initPresetRows() {
+  feeRowId = 0;
+  feeRows.length = 0;
+  document.getElementById('feesBody').innerHTML = '';
+  // 银行行：就 1、2 行（按样表）
+  addFeeRow({ party: '银行（银行填写）', seqNo: '1', name: '银团贷款费用', isInvolved: '否', institutionName: '', totalAmount: 0, enterpriseShare: 0, bankShare: 0, otherShare: 0, payMethod: '一次性支付', payCycle: '—', periodAmount: 0, note: '' });
+  addFeeRow({ party: '银行（银行填写）', seqNo: '2', name: '贸易融资手续费', isInvolved: '否', institutionName: '', totalAmount: 0, enterpriseShare: 0, bankShare: 0, otherShare: 0, payMethod: '一次性支付', payCycle: '—', periodAmount: 0, note: '' });
+  addFeeRow({ party: '银行（银行填写）', seqNo: '...', name: '其他费用（由银行具体列明）', isInvolved: '否', institutionName: '', totalAmount: 0, enterpriseShare: 0, bankShare: 0, otherShare: 0, payMethod: '一次性支付', payCycle: '—', periodAmount: 0, note: '' });
+  // 第三方行：1-8
+  const thirdPartyNames = ['担保费', '保险费', '质押监管费', '评估费', '质押或抵押登记费', '公证费', '供应链平台服务费', '政府应急转贷费'];
+  for (let i = 1; i <= 8; i++) {
+    addFeeRow({ party: i === 1 ? '第三方（银行承担项目，银行填）' : '第三方（企业填写）', seqNo: String(i), name: thirdPartyNames[i-1] || '', isInvolved: '否', institutionName: '', totalAmount: 0, enterpriseShare: 0, bankShare: 0, otherShare: 0, payMethod: '一次性支付', payCycle: '—', periodAmount: 0, note: '' });
+  }
+  // "..." 行（其他费用）
+  addFeeRow({ party: '第三方（企业填写）', seqNo: '...', name: '其他费用（需具体说明，如中介服务费、其他过桥费用等）', isInvolved: '否', institutionName: '', totalAmount: 0, enterpriseShare: 0, bankShare: 0, otherShare: 0, payMethod: '一次性支付', payCycle: '—', periodAmount: 0, note: '' });
+}
+
+// ===================== 重置表单 =====================
+function resetForm() {
+  if (!confirm('确认重置表单？所有填写的数据将清空。')) return;
+  document.querySelectorAll('input[type="text"], input[type="number"]').forEach(el => {
+    if (el.id !== 'signDate') el.value = '';
+  });
+  document.getElementById('loanTermUnit').value = '月';
+  document.getElementById('repayMethod').value = '到期一次性还本付息';
+  document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
+  document.querySelectorAll('input[type="radio"]').forEach(el => el.checked = (el.defaultChecked));
+  // 费用行：清空数据
+  feeRows.length = 0;
+  document.getElementById('feesBody').innerHTML = '';
+  feeRowId = 0;
+  initPresetRows();
+  // 重新计算
+  recalcAll();
+}
+
+// ===================== PDF 导出 =====================
+async function exportPDF() {
+  const paper = document.getElementById('paper');
+  // 临时展开为完整内容用于截图
+  const btns = paper.parentElement.querySelectorAll('.no-print');
+  btns.forEach(b => b.style.visibility = 'hidden');
+
+  try {
+    const canvas = await html2canvas(paper, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW = pageW - 10; // 留 5mm 边距
+    const imgH = (canvas.height / canvas.width) * imgW;
+    let y = 5;
+    let remainH = imgH;
+    // 多页：单张过高时分页
+    if (imgH <= pageH - 10) {
+      pdf.addImage(imgData, 'JPEG', 5, y, imgW, imgH);
+    } else {
+      // 分页策略：按比例切片
+      const totalPages = Math.ceil(imgH / (pageH - 10));
+      const sliceH = canvas.height / totalPages;
+      for (let i = 0; i < totalPages; i++) {
+        const c = document.createElement('canvas');
+        c.width = canvas.width; c.height = sliceH;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(canvas, 0, i * sliceH, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+        const sliceData = c.toDataURL('image/jpeg', 0.95);
+        if (i > 0) pdf.addPage();
+        pdf.addImage(sliceData, 'JPEG', 5, 5, imgW, (sliceH / canvas.width) * imgW);
+      }
+    }
+    pdf.save('企业贷款综合融资成本清单.pdf');
+  } catch (e) {
+    console.error('PDF 导出失败：', e);
+    alert('PDF 导出失败：' + e.message);
+  } finally {
+    btns.forEach(b => b.style.visibility = '');
+  }
+}
+
+// ===================== 启动 =====================
+document.addEventListener('DOMContentLoaded', () => {
+  // 默认填表日期为今天
+  document.getElementById('signDate').value = new Date().toISOString().slice(0, 10);
+  initPresetRows();
+  recalcAll();
+});
+</script>
+
+</body>
+</html>
