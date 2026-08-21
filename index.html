@@ -98,6 +98,7 @@
   <div class="actions">
     <button onclick="window.print()">打印</button>
     <button onclick="exportPDF()">导出PDF</button>
+    <button onclick="downloadOriginalTemplate()">导出Excel样表</button>
     <button onclick="resetForm()">重置表单</button>
   </div>
 </div>
@@ -693,6 +694,23 @@ async function exportPDF() {
     alert('PDF 导出失败：' + e.message);
   } finally {
     btns.forEach(b => b.style.visibility = '');
+  }
+}
+
+// ===================== 导出 Excel 样表 =====================
+function downloadOriginalTemplate() {
+  const fileName = '附1：企业贷款综合融资成本清单(1).xlsx';
+  try {
+    const a = document.createElement('a');
+    // encodeURI 保留合法 URL 字符，对中文、全角符号进行编码
+    a.href = encodeURI(fileName);
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (err) {
+    console.error('下载附一样表失败：', err);
+    alert('下载附一样表失败：' + err.message + '\n请确认是通过 http/https 或本地文件方式打开，且文件存在。');
   }
 }
 
