@@ -8,8 +8,10 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { font-family: "SimSun", "Microsoft YaHei", "PingFang SC", serif; background: #d4d4d4; color: #000; font-size: 12px; }
-  .page-toolbar { position: sticky; top: 0; z-index: 100; background: #1a5490; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.15); flex-wrap: wrap; gap: 8px; }
-  .page-toolbar .title { font-size: 16px; font-weight: 600; }
+  .page-toolbar { position: sticky; top: 0; z-index: 100; background: #de132b; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.15); flex-wrap: wrap; gap: 8px; }
+  .page-toolbar .title { display: flex; flex-direction: column; justify-content: center; line-height: 1.3; }
+  .page-toolbar .title .title-line1 { font-size: 15px; font-weight: 600; letter-spacing: 1px; }
+  .page-toolbar .title .title-line2 { font-size: 13px; font-weight: 600; }
   .page-toolbar .actions { display: flex; gap: 8px; }
   .page-toolbar button { padding: 6px 16px; border: 1px solid #fff; background: transparent; color: #fff; border-radius: 3px; cursor: pointer; font-size: 13px; }
   .page-toolbar button:hover { background: #fff; color: #1a5490; }
@@ -76,11 +78,59 @@
   /* 备注小字 */
   .sub-note { font-size: 11px; color: #333; padding: 2px 4px; line-height: 1.5; }
 
+  /* ===== 输入校验视觉反馈：仅保留错误红色边框/背景，不显示成功状态 ===== */
+  .cell-input, .cell-select { transition: border-color 0.15s, box-shadow 0.15s, background 0.15s; }
+  .cell-input.input-error, .cell-select.input-error { background: #fff2f0 !important; box-shadow: inset 0 0 0 1px #ff4d4f; }
+  .negative-marker { outline: 2px solid #ff4d4f !important; outline-offset: -2px; }
+
+  /* ===== 校验弹窗 ===== */
+  .validation-modal-overlay {
+    position: fixed; inset: 0; z-index: 2000;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Microsoft YaHei", "SimSun", "PingFang SC", sans-serif;
+  }
+  .validation-modal-overlay.hidden { display: none; }
+  .validation-modal {
+    background: #fff; border-radius: 4px; width: 90%; max-width: 480px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25); overflow: hidden;
+  }
+  .validation-modal-header {
+    background: #de132b; color: #fff; padding: 12px 16px;
+    font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: space-between;
+  }
+  .validation-modal-header .close-btn {
+    background: transparent; border: none; color: #fff; font-size: 20px; line-height: 1;
+    cursor: pointer; padding: 0 0 0 12px;
+  }
+  .validation-modal-body {
+    padding: 16px; max-height: 60vh; overflow-y: auto; font-size: 13px; color: #333;
+  }
+  .validation-modal-body .modal-tip { color: #666; margin-bottom: 10px; line-height: 1.5; }
+  .validation-modal-body .error-list { list-style: none; padding: 0; margin: 0; }
+  .validation-modal-body .error-list li {
+    padding: 8px 10px; margin-bottom: 6px; background: #fff2f0; border-left: 3px solid #ff4d4f;
+    border-radius: 2px; line-height: 1.5; word-break: break-all;
+  }
+  .validation-modal-body .error-list li .idx {
+    display: inline-block; min-width: 22px; color: #de132b; font-weight: 600;
+  }
+  .validation-modal-footer {
+    padding: 10px 16px 16px; text-align: right;
+  }
+  .validation-modal-footer button {
+    padding: 7px 22px; border: none; border-radius: 3px; cursor: pointer;
+    background: #de132b; color: #fff; font-size: 13px;
+  }
+  .validation-modal-footer button:hover { background: #b01024; }
+
   @media print {
     body { background: #fff; }
     .page-toolbar { display: none; }
     .paper { box-shadow: none; max-width: 100%; }
     .row-action { display: none; }
+    .validation-modal-overlay, .negative-marker { display: none !important; }
+    .cell-input.input-error, .cell-select.input-error { background: transparent !important; box-shadow: none !important; }
   }
 
   @media (max-width: 768px) {
@@ -94,9 +144,12 @@
 <body>
 
 <div class="page-toolbar no-print">
-  <div class="title">企业贷款综合融资成本清单</div>
+  <div class="title">
+    <div class="title-line1">莱州农商银行</div>
+    <div class="title-line2">企业贷款综合成本清单</div>
+  </div>
   <div class="actions">
-    <button onclick="window.print()">打印</button>
+    <button onclick="printWithValidation()">打印</button>
     <button onclick="exportPDF()">导出PDF</button>
     <button onclick="downloadOriginalTemplate()">导出Excel样表</button>
     <button onclick="resetForm()">重置表单</button>
@@ -164,17 +217,17 @@
         <td class="label">企业类型</td>
         <td style="text-align:left; padding:4px 6px;">
           <div class="checkbox-group" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start;">
-            <label><input type="radio" name="entType" value="大型"> 大型</label>
-            <label><input type="radio" name="entType" value="中型"> 中型</label>
-            <label><input type="radio" name="entType" value="小型"> 小型</label>
-            <label><input type="radio" name="entType" value="微型"> 微型</label>
+            <label><input type="checkbox" class="single-check" name="entType" value="大型"> 大型</label>
+            <label><input type="checkbox" class="single-check" name="entType" value="中型"> 中型</label>
+            <label><input type="checkbox" class="single-check" name="entType" value="小型"> 小型</label>
+            <label><input type="checkbox" class="single-check" name="entType" value="微型"> 微型</label>
           </div>
         </td>
         <td class="label">企业性质</td>
         <td style="text-align:left; padding:4px 6px;">
           <div class="checkbox-group" style="display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-start;">
-            <label><input type="radio" name="entNature" value="国有控股"> 国有控股</label>
-            <label><input type="radio" name="entNature" value="非国有控股"> 非国有控股</label>
+            <label><input type="checkbox" class="single-check" name="entNature" value="国有控股"> 国有控股</label>
+            <label><input type="checkbox" class="single-check" name="entNature" value="非国有控股"> 非国有控股</label>
           </div>
         </td>
         <td class="label" colspan="2">个人经营性贷款（如是）</td>
@@ -282,7 +335,297 @@
   </div>
 </div>
 
+<!-- ===== 校验弹窗 ===== -->
+<div id="validationModal" class="validation-modal-overlay hidden">
+  <div class="validation-modal">
+    <div class="validation-modal-header">
+      <span id="validationModalTitle">输入校验提示</span>
+      <button class="close-btn" onclick="hideValidationModal()" aria-label="关闭">×</button>
+    </div>
+    <div class="validation-modal-body" id="validationModalBody"></div>
+    <div class="validation-modal-footer">
+      <button onclick="hideValidationModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ===================== 输入校验模块 =====================
+const validationRules = {};
+function registerRule(key, rule) { validationRules[key] = rule; }
+
+function defineValidationRules() {
+  // 基本信息
+  registerRule('#bankName', { required: true, maxLength: 50, label: '银行名称' });
+  registerRule('#loanPrincipal', { required: true, number: true, min: 0, positive: true, decimal: 2, label: '贷款本金' });
+  registerRule('#annualRate', { required: true, number: true, min: 0, decimal: 4, label: '贷款年化利率' });
+  registerRule('#borrowerName', { required: true, maxLength: 50, label: '企业/借款人名称' });
+  registerRule('#loanTermValue', { required: true, integer: true, min: 0, positive: true, max: 9999, label: '贷款期限' });
+  registerRule('#repayCycleText', { maxLength: 20, label: '还款周期' });
+  registerRule('#guarOther', { maxLength: 50, label: '担保方式其他' });
+
+  // 签字区
+  registerRule('#signBorrower', { maxLength: 30, label: '客户经办人签字' });
+  registerRule('#signBank', { maxLength: 30, label: '银行签字' });
+  registerRule('#signDate', { required: true, date: true, label: '填表日期' });
+
+  // 费用行（按 data-field）
+  registerRule('seqNo', { maxLength: 10, label: '项目序号' });
+  registerRule('name', { required: true, maxLength: 50, label: '成本项目名称' });
+  registerRule('institutionName', { maxLength: 50, label: '收费机构名称' });
+  registerRule('totalAmount', { number: true, min: 0, decimal: 2, label: '收费总额' });
+  registerRule('enterpriseShare', { number: true, min: 0, decimal: 2, label: '企业实际承担金额' });
+  registerRule('bankShare', { number: true, min: 0, decimal: 2, label: '银行承担金额' });
+  registerRule('otherShare', { number: true, min: 0, decimal: 2, label: '其他承担金额' });
+  registerRule('periodAmount', { number: true, min: 0, decimal: 2, label: '每期金额' });
+  registerRule('note', { maxLength: 100, label: '备注' });
+}
+
+function getRule(el) {
+  if (el.id && validationRules['#' + el.id]) return validationRules['#' + el.id];
+  const field = el.getAttribute('data-field');
+  if (field && validationRules[field]) return validationRules[field];
+  return null;
+}
+
+function clearValidation(el) {
+  el.classList.remove('input-error', 'input-success', 'negative-marker');
+  // 清理此前版本可能残留的内联提示节点
+  const parent = el.parentNode;
+  if (parent) {
+    parent.querySelectorAll('.validation-msg').forEach(n => n.remove());
+  }
+}
+
+function showFieldError(el) {
+  el.classList.remove('input-success');
+  el.classList.add('input-error', 'negative-marker');
+}
+
+function showFieldSuccess(el) {
+  el.classList.remove('input-error', 'negative-marker');
+}
+
+// ===================== 校验弹窗 =====================
+function showValidationModal(errors, options = {}) {
+  const overlay = document.getElementById('validationModal');
+  const body = document.getElementById('validationModalBody');
+  const titleEl = document.getElementById('validationModalTitle');
+  if (!overlay || !body) return;
+
+  titleEl.textContent = options.title || '输入校验提示';
+  body.innerHTML = '';
+
+  if (!errors || errors.length === 0) {
+    body.innerHTML = '<p class="modal-tip">校验通过，未发现错误。</p>';
+  } else if (options.single || errors.length === 1) {
+    const err = errors[0];
+    body.innerHTML = `
+      <p class="modal-tip">请检查以下输入项：</p>
+      <ul class="error-list"><li><span class="idx">•</span>${escapeHtml(err.msg)}</li></ul>
+    `;
+  } else {
+    const lis = errors.map((e, i) =>
+      `<li><span class="idx">${i + 1}.</span>${escapeHtml(e.msg)}</li>`
+    ).join('');
+    body.innerHTML = `
+      <p class="modal-tip">共发现 ${errors.length} 处错误，请逐项修正：</p>
+      <ul class="error-list">${lis}</ul>
+    `;
+  }
+
+  overlay.classList.remove('hidden');
+  // 焦点移到关闭按钮，方便键盘操作
+  const closeBtn = overlay.querySelector('.validation-modal-footer button');
+  if (closeBtn) setTimeout(() => closeBtn.focus(), 10);
+}
+
+function hideValidationModal() {
+  const overlay = document.getElementById('validationModal');
+  if (overlay) overlay.classList.add('hidden');
+}
+
+// 点击遮罩或按 ESC 关闭弹窗
+document.addEventListener('click', e => {
+  const overlay = document.getElementById('validationModal');
+  if (overlay && e.target === overlay && !overlay.classList.contains('hidden')) {
+    hideValidationModal();
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') hideValidationModal();
+});
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+function autoTrim(el) {
+  if (el.type === 'text' && typeof el.value === 'string') {
+    el.value = el.value.trim().replace(/\s+/g, ' ');
+  }
+}
+
+function validateField(el, opts = {}) {
+  const rule = getRule(el);
+  if (!rule) { clearValidation(el); return { valid: true }; }
+  const value = (el.value || '').trim();
+  const isEmpty = value === '';
+
+  // 必填
+  if (rule.required && isEmpty) {
+    if (!opts.silent) showFieldError(el);
+    return { valid: false, msg: `${rule.label || '该项'}不能为空`, negative: false };
+  }
+  if (isEmpty) { clearValidation(el); return { valid: true }; }
+
+  // 数字/整数校验（核心：非负校验）
+  if (rule.number || rule.integer) {
+    const num = rule.integer ? parseInt(value, 10) : parseFloat(value);
+    if (isNaN(num) || !isFinite(num)) {
+      if (!opts.silent) showFieldError(el);
+      return { valid: false, msg: `${rule.label || '该项'}需为有效数字`, negative: false };
+    }
+    if (rule.integer && !/^-?\d+$/.test(value)) {
+      if (!opts.silent) showFieldError(el);
+      return { valid: false, msg: `${rule.label || '该项'}需为整数`, negative: false };
+    }
+    if (rule.decimal != null) {
+      const parts = value.split('.');
+      if (parts.length > 2 || (parts[1] && parts[1].length > rule.decimal)) {
+        if (!opts.silent) showFieldError(el);
+        return { valid: false, msg: `${rule.label || '该项'}最多保留 ${rule.decimal} 位小数`, negative: false };
+      }
+    }
+    // 非负值校验（当 min 为 0 时给出更明确的提示）
+    if (rule.min != null && num < rule.min) {
+      const hint = rule.min === 0 ? `${rule.label || '该项'}不能为负数` : `${rule.label || '该项'}不能小于 ${rule.min}`;
+      if (!opts.silent) showFieldError(el);
+      return { valid: false, msg: hint, negative: rule.min >= 0 && num < 0 };
+    }
+    if (rule.positive && num <= 0) {
+      const hint = num < 0 ? `${rule.label || '该项'}不能为负数` : `${rule.label || '该项'}必须大于 0`;
+      if (!opts.silent) showFieldError(el);
+      return { valid: false, msg: hint, negative: num < 0 };
+    }
+    if (rule.max != null && num > rule.max) {
+      if (!opts.silent) showFieldError(el);
+      return { valid: false, msg: `${rule.label || '该项'}不能大于 ${rule.max}`, negative: false };
+    }
+  }
+
+  // 日期
+  if (rule.date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      if (!opts.silent) showFieldError(el);
+      return { valid: false, msg: `${rule.label || '该项'}需为有效日期`, negative: false };
+    }
+  }
+
+  // 长度
+  if (rule.maxLength != null && value.length > rule.maxLength) {
+    if (!opts.silent) showFieldError(el);
+    return { valid: false, msg: `${rule.label || '该项'}最多 ${rule.maxLength} 个字符（当前 ${value.length}）`, negative: false };
+  }
+
+  if (!opts.silent) showFieldSuccess(el);
+  return { valid: true };
+}
+
+function onValidateInput(e) {
+  const el = e.target;
+  if (getRule(el)) validateField(el);
+}
+function onValidateBlur(e) {
+  const el = e.target;
+  if (!getRule(el)) return;
+  autoTrim(el);
+  const r = validateField(el);
+  if (!r.valid) {
+    // 单字段 blur 时仅弹出该字段的第一条错误
+    showValidationModal([{ msg: r.msg }], { single: true, title: '输入校验提示' });
+  }
+}
+
+function bindValidationEvents(scope = document) {
+  scope.querySelectorAll('input.cell-input, input[type="date"], input[type="number"], select.cell-select').forEach(el => {
+    el.removeEventListener('input', onValidateInput);
+    el.removeEventListener('blur', onValidateBlur);
+    el.removeEventListener('change', onValidateInput);
+    el.addEventListener('input', onValidateInput);
+    el.addEventListener('blur', onValidateBlur);
+    if (el.tagName === 'SELECT') el.addEventListener('change', onValidateInput);
+  });
+}
+
+function getFieldPositionLabel(el) {
+  const tr = el.closest('tr[data-fee-id]');
+  if (tr) {
+    const seq = tr.querySelector('[data-field="seqNo"]')?.value || '';
+    const rule = getRule(el);
+    return `费用行${seq ? '（序号 ' + seq + '）' : ''}的${rule?.label || '字段'}`;
+  }
+  return getRule(el)?.label || '字段';
+}
+
+function validateAll() {
+  const errors = [];
+  const elements = document.querySelectorAll('input.cell-input, input[type="date"], input[type="number"], select.cell-select');
+  elements.forEach(el => {
+    if (!getRule(el)) return;
+    const r = validateField(el);
+    if (!r.valid) {
+      errors.push({ el, msg: r.msg, label: getFieldPositionLabel(el), negative: !!r.negative });
+    }
+  });
+  return { valid: errors.length === 0, errors };
+}
+
+function validateNonNegativeOnly() {
+  // 仅检查所有数字字段是否为非负，用于专门阻断负值提交
+  const errors = [];
+  document.querySelectorAll('input.cell-input, input[type="number"]').forEach(el => {
+    const rule = getRule(el);
+    if (!rule || !rule.number) return;
+    const value = (el.value || '').trim();
+    if (value === '') return;
+    const num = parseFloat(value);
+    if (isNaN(num)) return;
+    if (num < 0) {
+      const label = getFieldPositionLabel(el);
+      showFieldError(el, `${label}不能为负数`);
+      errors.push({ el, msg: `${label}不能为负数`, label, negative: true });
+    }
+  });
+  return { valid: errors.length === 0, errors };
+}
+
+function reportValidationErrors(result, title) {
+  if (result.valid) return true;
+  const first = result.errors[0];
+  if (first && first.el) {
+    first.el.focus();
+    first.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  showValidationModal(result.errors, { title: title || '表单校验未通过' });
+  return false;
+}
+
+function canProceedWithAction(actionName) {
+  // 先检查负值（用户本次核心要求）
+  const neg = validateNonNegativeOnly();
+  if (!neg.valid) return reportValidationErrors(neg, `${actionName}失败：检测到负值`);
+  // 再检查全部规则
+  const all = validateAll();
+  if (!all.valid) return reportValidationErrors(all, `${actionName}失败：表单填写有误`);
+  return true;
+}
+
+function printWithValidation() {
+  if (!canProceedWithAction('打印')) return;
+  window.print();
+}
+
 // ===================== 工具函数 =====================
 const fmtMoney = v => (v == null || isNaN(v)) ? '—' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtPct = v => (v == null || isNaN(v)) ? '—' : (Number(v) * 100).toFixed(2) + '%';
@@ -471,8 +814,8 @@ function renderFeeRow(row) {
     </td>
     <td><input class="cell-input" data-field="seqNo" type="text"></td>
     <td><input class="cell-input left" data-field="name" type="text" placeholder="如：担保费、保险费..."></td>
-    <td><input type="radio" data-field="isInvolved" value="是" name="involved-${row.id}"></td>
-    <td><input type="radio" data-field="isInvolved" value="否" name="involved-${row.id}" checked></td>
+    <td><input type="checkbox" class="single-check" data-field="isInvolved" value="是" name="involved-${row.id}"></td>
+    <td><input type="checkbox" class="single-check" data-field="isInvolved" value="否" name="involved-${row.id}" checked></td>
     <td><input class="cell-input left" data-field="institutionName" type="text" placeholder="收费机构名称"></td>
     <td><input class="cell-input right" data-field="totalAmount" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
     <td><input class="cell-input right" data-field="enterpriseShare" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
@@ -515,6 +858,7 @@ function renderFeeRow(row) {
   tr.querySelector(`[data-field="periodAmount"]`).value = row.periodAmount || '';
   tr.querySelector(`[data-field="note"]`).value = row.note;
   tbody.appendChild(tr);
+  bindValidationEvents(tr);
 }
 
 function readFeeRowFromDOM(tr) {
@@ -522,7 +866,7 @@ function readFeeRowFromDOM(tr) {
   const get = field => {
     const el = tr.querySelector(`[data-field="${field}"]`);
     if (!el) return null;
-    if (el.type === 'radio') {
+    if (el.type === 'checkbox') {
       const sel = tr.querySelector(`input[data-field="${field}"]:checked`);
       return sel ? sel.value : null;
     }
@@ -637,19 +981,22 @@ function resetForm() {
   });
   document.getElementById('loanTermUnit').value = '月';
   document.getElementById('repayMethod').value = '到期一次性还本付息';
-  document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = false);
-  document.querySelectorAll('input[type="radio"]').forEach(el => el.checked = (el.defaultChecked));
+  document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = el.classList.contains('single-check') ? el.defaultChecked : false);
   // 费用行：清空数据
   feeRows.length = 0;
   document.getElementById('feesBody').innerHTML = '';
   feeRowId = 0;
   initPresetRows();
+  // 清除所有校验状态
+  document.querySelectorAll('.input-error, .input-success, .negative-marker').forEach(el => clearValidation(el));
   // 重新计算
   recalcAll();
 }
 
 // ===================== PDF 导出 =====================
 async function exportPDF() {
+  if (!canProceedWithAction('导出PDF')) return;
+
   const paper = document.getElementById('paper');
   // 临时展开为完整内容用于截图
   const btns = paper.parentElement.querySelectorAll('.no-print');
@@ -716,10 +1063,24 @@ function downloadOriginalTemplate() {
 
 // ===================== 启动 =====================
 document.addEventListener('DOMContentLoaded', () => {
+  defineValidationRules();
   // 默认填表日期为今天
   document.getElementById('signDate').value = new Date().toISOString().slice(0, 10);
   initPresetRows();
   recalcAll();
+  bindValidationEvents();
+});
+
+// 单选 checkbox 行为：同 name 的 .single-check 组内只能选中一个
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.matches('input[type="checkbox"].single-check') && t.checked) {
+    document.querySelectorAll(`input[type="checkbox"].single-check[name="${t.name}"]`).forEach(cb => {
+      if (cb !== t) cb.checked = false;
+    });
+    const tr = t.closest('tr[data-fee-id]');
+    if (tr) onFeeInput(parseInt(tr.getAttribute('data-fee-id')));
+  }
 });
 </script>
 
