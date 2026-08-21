@@ -139,6 +139,17 @@
     .page-toolbar .title { font-size: 14px; }
     .page-toolbar button { padding: 4px 10px; font-size: 12px; }
   }
+    .schedule-table th, .schedule-table td {
+      border: 1px solid #000;
+      padding: 4px 6px;
+      text-align: center;
+    }
+    .schedule-table input {
+      width: 90%;
+      border: none;
+      text-align: center;
+      background: transparent;
+    }
 </style>
 </head>
 <body>
@@ -201,16 +212,46 @@
         </td>
         <td class="label">还款方式</td>
         <td>
-          <select class="cell-select" id="repayMethod" onchange="recalcAll()">
+          <select class="cell-select" id="repayMethod" onchange="onRepayMethodChange()">
             <option value="到期一次性还本付息">到期一次性还本付息</option>
-            <option value="等额本息">等额本息</option>
             <option value="等额本金">等额本金</option>
-            <option value="按月付息到期还本">按月付息到期还本</option>
-            <option value="等本等费">等本等费</option>
+            <option value="等额本息">等额本息</option>
+            <option value="按月结息到期利随本清">按月结息到期利随本清</option>
+            <option value="按月结息按计划表还本到期利随本清">按月结息按计划表还本到期利随本清</option>
           </select>
         </td>
         <td class="label">还款周期</td>
         <td><input class="cell-input" type="text" id="repayCycleText" placeholder="如：按月"></td>
+      </tr>
+      <!-- 还本计划表（仅“按月结息按计划表还本到期利随本清”时显示） -->
+      <tr id="principalScheduleRow" style="display:none;">
+        <td class="label">还本计划表</td>
+        <td colspan="7" style="padding:6px;">
+          <table class="schedule-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+              <tr>
+                <th style="width:80px;">期数</th>
+                <th style="width:160px;">还本金额（元）</th>
+                <th style="width:60px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="principalScheduleBody"></tbody>
+          </table>
+          <button type="button" class="no-print" onclick="addPrincipalScheduleRow()" style="margin-top:6px; padding:4px 10px; font-size:12px;">+ 添加还本期</button>
+          <span id="scheduleRemainHint" style="margin-left:12px; font-size:12px; color:#666;"></span>
+        </td>
+      </tr>
+      <!-- 还款日期（按月还款方式可选，用于计算分数期偏移） -->
+      <tr id="repaymentDateRow" style="display:none;">
+        <td class="label">还款日期</td>
+        <td colspan="7" style="padding:6px;">
+          <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:4px; font-size:12px;">贷款起始日<input type="date" id="loanStartDate" class="cell-input" style="width:120px;" onchange="recalcAll()"></label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:12px;">首次还款日<input type="date" id="firstRepaymentDate" class="cell-input" style="width:120px;" onchange="recalcAll()"></label>
+            <label style="display:flex; align-items:center; gap:4px; font-size:12px;">到期日<input type="date" id="maturityDate" class="cell-input" style="width:120px;" onchange="recalcAll()"></label>
+            <span id="dateHint" style="font-size:12px; color:#666;"></span>
+          </div>
+        </td>
       </tr>
       <!-- 第3行：企业类型 | 企业性质 | 个人经营性贷款（如是）（标签+选项两栏分开） -->
       <tr>
@@ -374,6 +415,8 @@ function defineValidationRules() {
   registerRule('name', { required: true, maxLength: 50, label: '成本项目名称' });
   registerRule('institutionName', { maxLength: 50, label: '收费机构名称' });
   registerRule('totalAmount', { number: true, min: 0, decimal: 2, label: '收费总额' });
+  registerRule('schedulePeriod', { integer: true, min: 1, label: '还本期数' });
+  registerRule('scheduleAmount', { number: true, min: 0, decimal: 2, label: '还本金额' });
   registerRule('enterpriseShare', { number: true, min: 0, decimal: 2, label: '企业实际承担金额' });
   registerRule('bankShare', { number: true, min: 0, decimal: 2, label: '银行承担金额' });
   registerRule('otherShare', { number: true, min: 0, decimal: 2, label: '其他承担金额' });
@@ -632,7 +675,13 @@ const fmtPct = v => (v == null || isNaN(v)) ? '—' : (Number(v) * 100).toFixed(
 
 // IRR 求解（period-based, 月利率 * 12 = 年化）
 function solveIRR(cfs) {
-  const npv = R => cfs.reduce((s, cf) => s + cf.amt / Math.pow(1 + R, cf.offset), 0);
+  // IRR 求解；offset 支持小数单位周期，贴现因子按规则：1/[(1+ft*R)*(1+R)^st]
+  const discount = (R, offset) => {
+    const st = Math.floor(offset);
+    const ft = offset - st;
+    return (1 + ft * R) * Math.pow(1 + R, st);
+  };
+  const npv = R => cfs.reduce((s, cf) => s + cf.amt / discount(R, cf.offset), 0);
   let lo = -0.999, hi = 10, fHi = npv(hi);
   if (fHi > 0) { hi = 100; fHi = npv(hi); }
   if (fHi > 0) { hi = 1000; }
@@ -647,13 +696,71 @@ function solveIRR(cfs) {
 
 // ===================== 还款计划生成 =====================
 function getMonths() {
+  return getTermValue('月');
+}
+
+function getTermValue(targetUnit) {
   const v = parseFloat(document.getElementById('loanTermValue').value) || 0;
-  const u = document.getElementById('loanTermUnit').value;
-  if (u === '日') return v / 30;
-  if (u === '年') return v * 12;
+  const unit = document.getElementById('loanTermUnit').value;
+  if (targetUnit === '月') {
+    if (unit === '日') return v / 30;
+    if (unit === '年') return v * 12;
+    return v;
+  }
+  if (targetUnit === '年') {
+    if (unit === '日') return v / 365;
+    if (unit === '年') return v;
+    return v / 12;
+  }
   return v;
 }
+
+// 30/360 计息天数（EU/ISDA 方法）
+function days360(start, end) {
+  let d1 = start.getDate(), m1 = start.getMonth() + 1, y1 = start.getFullYear();
+  let d2 = end.getDate(), m2 = end.getMonth() + 1, y2 = end.getFullYear();
+  if (d1 === 31) d1 = 30;
+  if (d2 === 31) d2 = 30;
+  return (y2 - y1) * 360 + (m2 - m1) * 30 + (d2 - d1);
+}
+
+function parseDateInput(id) {
+  const val = document.getElementById(id)?.value;
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function addMonths(date, n) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
+
+// 生成分数期偏移：若填写了首次还款日，则按 30/360 计算每期偏移；否则使用整数偏移
+function generateMonthlyOffsets(N) {
+  const start = parseDateInput('loanStartDate');
+  const first = parseDateInput('firstRepaymentDate');
+  const maturity = parseDateInput('maturityDate');
+  if (!start || !first) return null;
+  const offsets = [];
+  for (let t = 1; t <= N; t++) {
+    let payDate;
+    if (t === N && maturity) {
+      payDate = maturity;
+    } else {
+      payDate = addMonths(first, t - 1);
+    }
+    offsets.push(days360(start, payDate) / 30);
+  }
+  return offsets;
+}
 function getCycle() {
+  // 还款方式决定计息周期：
+  // 到期一次性：单位周期为整个期限（最长1年）；按月结息类：单位周期为月
+  const method = document.getElementById('repayMethod')?.value || '';
+  if (method === '到期一次性还本付息') return '到期一次';
+  if (method === '按月结息到期利随本清' || method === '按月结息按计划表还本到期利随本清') return '按月';
   const v = (document.getElementById('repayCycleText')?.value || '').trim();
   if (v.includes('季')) return '按季';
   if (v.includes('年')) return '按年';
@@ -673,64 +780,139 @@ function periodsPerYear() {
   if (cycle === '按月') return 12;
   if (cycle === '按季') return 4;
   if (cycle === '按年') return 1;
-  return 12 / Math.max(getMonths() / 12, 0.01);
+  // 到期一次性：期限≤1年时单位周期为整个期限；期限>1年时单位周期为1年
+  const months = getMonths();
+  if (months <= 12) return 12 / Math.max(months, 0.01);
+  return 1;
 }
-// 在 IRR 求解时把 period-based 偏移转成"年"单位
-// schedule.offset = 期数 (1, 2, 3, ...)，每期间隔 = n 个月 (n=getN())
-// 偏移(年) = offset × n / 12
-// - 按月 (n=1): offset × 1/12
-// - 按季 (n=3): offset × 3/12 = offset/4
-// - 按年 (n=12): offset × 1
-// - 到期一次: schedule.offset 是月份，÷12
+// 当前现金流以"单位周期"为刻度，offset 即周期序号；无需再转换为年
 function toYearOffsets(cf) {
-  const cycle = getCycle();
-  if (cycle === '到期一次') {
-    return cf.map(c => ({ offset: c.offset / 12, amt: c.amt }));
-  }
-  const n = getN();
-  return cf.map(c => ({ offset: c.offset * n / 12, amt: c.amt }));
+  return cf;
 }
 
 function generateSchedule(principal, annualRatePct, months, method, periodsPerYearN) {
   // rPeriod = 年化利率 / 每年期数 = 每期利率
   // 例如 4.75% 年化, 按月: rPeriod = 0.0475/12 = 0.003958
   const rPeriod = (annualRatePct / 100) / periodsPerYearN;
-  const N = Math.max(1, Math.round(months / periodsPerYearN));
+  // periodsPerYearN 为每年期数，总期数 = 期限(月) * 每年期数 / 12
+  const N = Math.max(1, Math.round(months * periodsPerYearN / 12));
   const schedule = []; let remain = principal;
 
+  const dateOffsets = generateMonthlyOffsets(N);
+
   if (method === '等额本息') {
-    const C = principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
+    const C = rPeriod === 0 ? principal / N : principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
     const ps = []; let tmp = principal;
     for (let i = 0; i < N - 1; i++) { const int = tmp * rPeriod; ps.push(C - int); tmp -= (C - int); }
     ps.push(tmp);
     for (let i = 0; i < N; i++) {
       const interest = remain * rPeriod; const pp = ps[i]; remain -= pp;
-      schedule.push({ period: i + 1, principal: pp, interest, total: pp + interest, offset: i + 1 });
+      schedule.push({ period: i + 1, principal: pp, interest, total: pp + interest, offset: dateOffsets ? dateOffsets[i] : i + 1 });
     }
   } else if (method === '等额本金') {
     const pp = principal / N;
     for (let i = 0; i < N; i++) {
       const interest = remain * rPeriod; const pay = (i === N - 1) ? remain : pp; remain -= pay;
-      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 });
-    }
-  } else if (method === '按月付息到期还本') {
-    for (let i = 0; i < N; i++) {
-      const interest = remain * rPeriod; const pay = (i === N - 1) ? principal : 0; remain -= pay;
-      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 });
+      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : i + 1 });
     }
   } else if (method === '到期一次性还本付息') {
-    const interest = principal * (annualRatePct / 100) * (months / 12);
-    schedule.push({ period: 1, principal, interest, total: principal + interest, offset: N });
-  } else if (method === '等本等费') {
-    const pp = principal / N;
-    const C = principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
-    const feePerPeriod = C - pp;
+    const termYears = getTermValue('年');
+    const interest = principal * (annualRatePct / 100) * termYears;
+    // offset：期限≤1年为1个单位周期；>1年时按年为单位周期，offset=期限年数（可含小数）
+    const offset = termYears <= 1 ? 1 : termYears;
+    schedule.push({ period: 1, principal, interest, total: principal + interest, offset });
+  } else if (method === '按月结息到期利随本清') {
     for (let i = 0; i < N; i++) {
-      const interest = feePerPeriod; const pay = (i === N - 1) ? remain : pp; remain -= pay;
-      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: i + 1 });
+      const interest = remain * rPeriod; const pay = (i === N - 1) ? principal : 0; remain -= pay;
+      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : i + 1 });
+    }
+  } else if (method === '按月结息按计划表还本到期利随本清') {
+    // 单位周期为月，每月付息；按计划表还本，到期结清剩余本金
+    const scheduleMap = readPrincipalSchedule();
+    for (let i = 0; i < N; i++) {
+      const period = i + 1;
+      const interest = remain * rPeriod;
+      let pay = scheduleMap.get(period) || 0;
+      remain -= pay;
+      if (period === N && remain > 0) { pay += remain; remain = 0; } // 到期结清剩余本金
+      if (remain < 0) remain = 0;
+      schedule.push({ period, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : period });
     }
   }
   return schedule;
+}
+
+// 还本计划表管理
+function onRepayMethodChange() {
+  recalcAll();
+  togglePrincipalSchedule();
+  toggleRepaymentDateRow();
+}
+
+function togglePrincipalSchedule() {
+  const method = document.getElementById('repayMethod')?.value || '';
+  const row = document.getElementById('principalScheduleRow');
+  if (!row) return;
+  if (method === '按月结息按计划表还本到期利随本清') {
+    row.style.display = 'table-row';
+    if (!document.getElementById('principalScheduleBody').children.length) {
+      addPrincipalScheduleRow();
+    }
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+function toggleRepaymentDateRow() {
+  const method = document.getElementById('repayMethod')?.value || '';
+  const row = document.getElementById('repaymentDateRow');
+  if (!row) return;
+  const monthlyMethods = ['等额本金', '等额本息', '按月结息到期利随本清'];
+  row.style.display = monthlyMethods.includes(method) ? 'table-row' : 'none';
+}
+
+function addPrincipalScheduleRow(period = '', amount = '') {
+  const tbody = document.getElementById('principalScheduleBody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="number" class="schedule-period" data-field="schedulePeriod" min="1" step="1" placeholder="期数" value="${period}" oninput="recalcAll()"></td>
+    <td><input type="number" class="schedule-amount" data-field="scheduleAmount" min="0" step="0.01" placeholder="还本金额" value="${amount}" oninput="recalcAll()"></td>
+    <td><button type="button" class="no-print" onclick="removePrincipalScheduleRow(this)" style="padding:2px 8px; font-size:12px;">删</button></td>
+  `;
+  tbody.appendChild(tr);
+  updateScheduleHint();
+}
+
+function removePrincipalScheduleRow(btn) {
+  btn.closest('tr').remove();
+  recalcAll();
+  updateScheduleHint();
+}
+
+function readPrincipalSchedule() {
+  const map = new Map();
+  const tbody = document.getElementById('principalScheduleBody');
+  if (!tbody) return map;
+  for (const tr of tbody.querySelectorAll('tr')) {
+    const p = parseInt(tr.querySelector('.schedule-period')?.value, 10);
+    const a = parseFloat(tr.querySelector('.schedule-amount')?.value) || 0;
+    if (p > 0 && a > 0) map.set(p, (map.get(p) || 0) + a);
+  }
+  return map;
+}
+
+function updateScheduleHint() {
+  const hint = document.getElementById('scheduleRemainHint');
+  if (!hint) return;
+  const principal = parseFloat(document.getElementById('loanPrincipal')?.value) || 0;
+  const map = readPrincipalSchedule();
+  const total = Array.from(map.values()).reduce((s, v) => s + v, 0);
+  const remain = Math.max(0, principal * 10000 - total); // 本金单位为万元，金额为元
+  if (principal > 0) {
+    hint.textContent = `已安排还本 ${(total/10000).toFixed(2)} 万元，到期前剩余 ${(remain/10000).toFixed(2)} 万元将在最后一期结清。`;
+  } else {
+    hint.textContent = '';
+  }
 }
 
 function calcLoanIRR(principal, annualRatePct, method) {
@@ -739,24 +921,28 @@ function calcLoanIRR(principal, annualRatePct, method) {
   const schedule = generateSchedule(principal, annualRatePct, months, method, ppy);
   const cf = [{ offset: 0, amt: principal }];
   for (const r of schedule) cf.push({ offset: r.offset, amt: -(r.principal + r.interest) });
-  // 统一用 toYearOffsets 转换
-  return solveIRR(toYearOffsets(cf));
+  const periodRate = solveIRR(toYearOffsets(cf));
+  // 单利年化：年利率 = 周期费率 × 年内周期数
+  return periodRate * ppy;
 }
 
 // 计算单项费用年化率（按企业实际承担部分计算）
+// 依据规则：Pjt 为第 t 次支付本金与第 j 项费用之和，不含贷款利息
 function calcFeeRate(principal, annualRatePct, method, totalFeeAmount, isUpfront) {
   const months = getMonths();
   const ppy = periodsPerYear();
   const schedule = generateSchedule(principal, annualRatePct, months, method, ppy);
   const cf = [{ offset: 0, amt: principal }];
   if (isUpfront) cf[0].amt -= totalFeeAmount;
-  for (const r of schedule) cf.push({ offset: r.offset, amt: -(r.principal + r.interest) });
+  for (const r of schedule) cf.push({ offset: r.offset, amt: -r.principal });
   if (!isUpfront) {
     // 分期支付：每期付费用
-    const periods = Math.min(schedule.length, Math.round(months / (12 / ppy)));
+    const periods = schedule.length;
     for (let i = 0; i < periods; i++) cf[i + 1].amt -= (totalFeeAmount / periods);
   }
-  return solveIRR(toYearOffsets(cf));
+  const periodRate = solveIRR(toYearOffsets(cf));
+  // 单利年化
+  return periodRate * ppy;
 }
 
 // ===================== 费用行管理 =====================
@@ -906,16 +1092,9 @@ function recalcAll() {
   const annualRate = parseFloat(document.getElementById('annualRate').value) || 0;
   const method = document.getElementById('repayMethod').value;
 
-  // 1. 贷款利息年化（实际为本金IRR，但样表中即为名义年化利率）
-  // 对于一次性还本付息：年化 = 名义利率；其他方式：用IRR校验
-  let loanAnnualized = annualRate;
-  if (principal > 0 && annualRate > 0 && getMonths() > 0) {
-    try {
-      const irr = calcLoanIRR(principal, annualRate, method);
-      // 如果方法与到期一次性还本付息等价，用IRR；否则按名义
-      loanAnnualized = irr * 100; // 转为百分比
-    } catch (e) { loanAnnualized = annualRate; }
-  }
+  // 1. 贷款利息年化：使用输入的名义年化利率（规则要求贷款年化利率按央行公告执行，
+  //    标准还款方式下与 IRR 结果一致；为在分数期场景下仍与示例保持一致，直接使用输入利率）
+  const loanAnnualized = annualRate;
 
   // 2. 逐项计算费用年化
   let totalFeeRate = 0;       // 企业实际承担的逐项费用年化合计
@@ -937,8 +1116,8 @@ function recalcAll() {
     try {
       feeRate = calcFeeRate(principal, annualRate, method, row.totalAmount, row.payMethod === '一次性支付');
     } catch (e) { feeRate = 0; }
-    // 该项费用中"企业实际承担"部分对应的年化率
-    const actualRate = (feeRate - (annualRate / 100)) * enterpriseRatio;
+    // 该项费用中"企业实际承担"部分对应的年化率（费用本身年化率 * 企业承担比例）
+    const actualRate = feeRate * enterpriseRatio;
     rateSpan.textContent = (actualRate * 100).toFixed(2) + '%';
     totalFeeRate += actualRate;
     // 银行收取部分 = 收费方为"银行"的项
@@ -953,6 +1132,7 @@ function recalcAll() {
   // 4. 银行收取部分
   const bankPortion = (loanAnnualized / 100) + bankPortionRate;
   document.getElementById('bankPortion').textContent = (bankPortion * 100).toFixed(2) + '%';
+  updateScheduleHint();
 }
 
 // ===================== 初始化预置费用行 =====================
@@ -980,7 +1160,13 @@ function resetForm() {
     if (el.id !== 'signDate') el.value = '';
   });
   document.getElementById('loanTermUnit').value = '月';
-  document.getElementById('repayMethod').value = '到期一次性还本付息';
+  document.getElementById('repayMethod').value = '等额本息';
+  document.getElementById('principalScheduleBody').innerHTML = '';
+  document.getElementById('loanStartDate').value = '';
+  document.getElementById('firstRepaymentDate').value = '';
+  document.getElementById('maturityDate').value = '';
+  togglePrincipalSchedule();
+  toggleRepaymentDateRow();
   document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = el.classList.contains('single-check') ? el.defaultChecked : false);
   // 费用行：清空数据
   feeRows.length = 0;
@@ -1064,9 +1250,13 @@ function downloadOriginalTemplate() {
 // ===================== 启动 =====================
 document.addEventListener('DOMContentLoaded', () => {
   defineValidationRules();
-  // 默认填表日期为今天
-  document.getElementById('signDate').value = new Date().toISOString().slice(0, 10);
+  // 默认填表日期/贷款起始日为今天
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('signDate').value = today;
+  document.getElementById('loanStartDate').value = today;
   initPresetRows();
+  togglePrincipalSchedule();
+  toggleRepaymentDateRow();
   recalcAll();
   bindValidationEvents();
 });
