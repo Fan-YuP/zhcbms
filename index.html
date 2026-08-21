@@ -213,9 +213,8 @@
         <td class="label">还款方式</td>
         <td>
           <select class="cell-select" id="repayMethod" onchange="onRepayMethodChange()">
-            <option value="到期一次性还本付息">到期一次性还本付息</option>
+            <option value="等额本息" selected>等额本息</option>
             <option value="等额本金">等额本金</option>
-            <option value="等额本息">等额本息</option>
             <option value="按月结息到期利随本清">按月结息到期利随本清</option>
             <option value="按月结息按计划表还本到期利随本清">按月结息按计划表还本到期利随本清</option>
           </select>
@@ -756,10 +755,8 @@ function generateMonthlyOffsets(N) {
   return offsets;
 }
 function getCycle() {
-  // 还款方式决定计息周期：
-  // 到期一次性：单位周期为整个期限（最长1年）；按月结息类：单位周期为月
+  // 还款方式决定计息周期：按月结息类：单位周期为月；其他方式通过还款周期文本判断
   const method = document.getElementById('repayMethod')?.value || '';
-  if (method === '到期一次性还本付息') return '到期一次';
   if (method === '按月结息到期利随本清' || method === '按月结息按计划表还本到期利随本清') return '按月';
   const v = (document.getElementById('repayCycleText')?.value || '').trim();
   if (v.includes('季')) return '按季';
@@ -815,12 +812,6 @@ function generateSchedule(principal, annualRatePct, months, method, periodsPerYe
       const interest = remain * rPeriod; const pay = (i === N - 1) ? remain : pp; remain -= pay;
       schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : i + 1 });
     }
-  } else if (method === '到期一次性还本付息') {
-    const termYears = getTermValue('年');
-    const interest = principal * (annualRatePct / 100) * termYears;
-    // offset：期限≤1年为1个单位周期；>1年时按年为单位周期，offset=期限年数（可含小数）
-    const offset = termYears <= 1 ? 1 : termYears;
-    schedule.push({ period: 1, principal, interest, total: principal + interest, offset });
   } else if (method === '按月结息到期利随本清') {
     for (let i = 0; i < N; i++) {
       const interest = remain * rPeriod; const pay = (i === N - 1) ? principal : 0; remain -= pay;
@@ -864,11 +855,13 @@ function togglePrincipalSchedule() {
 }
 
 function toggleRepaymentDateRow() {
-  const method = document.getElementById('repayMethod')?.value || '';
+  // 临时隐藏“还款日期”行；后续如需按还款方式显示，恢复下方判断逻辑
   const row = document.getElementById('repaymentDateRow');
   if (!row) return;
-  const monthlyMethods = ['等额本金', '等额本息', '按月结息到期利随本清'];
-  row.style.display = monthlyMethods.includes(method) ? 'table-row' : 'none';
+  row.style.display = 'none';
+  // const method = document.getElementById('repayMethod')?.value || '';
+  // const monthlyMethods = ['等额本金', '等额本息', '按月结息到期利随本清'];
+  // row.style.display = monthlyMethods.includes(method) ? 'table-row' : 'none';
 }
 
 function addPrincipalScheduleRow(period = '', amount = '') {
@@ -1156,26 +1149,40 @@ function initPresetRows() {
 // ===================== 重置表单 =====================
 function resetForm() {
   if (!confirm('确认重置表单？所有填写的数据将清空。')) return;
-  document.querySelectorAll('input[type="text"], input[type="number"]').forEach(el => {
-    if (el.id !== 'signDate') el.value = '';
+
+  // 1. 清空所有文本/数字/日期输入
+  document.querySelectorAll('input[type="text"], input[type="number"], input[type="date"]').forEach(el => {
+    el.value = '';
   });
+
+  // 2. 恢复默认日期
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById('signDate').value = today;
+  document.getElementById('loanStartDate').value = today;
+
+  // 3. 恢复下拉框默认值
   document.getElementById('loanTermUnit').value = '月';
   document.getElementById('repayMethod').value = '等额本息';
+
+  // 4. 清空还本计划表及还款日期
   document.getElementById('principalScheduleBody').innerHTML = '';
-  document.getElementById('loanStartDate').value = '';
   document.getElementById('firstRepaymentDate').value = '';
   document.getElementById('maturityDate').value = '';
+
+  // 5. 重置所有复选框为初始默认状态
+  document.querySelectorAll('input[type="checkbox"]').forEach(el => {
+    el.checked = el.defaultChecked;
+  });
+
+  // 6. 费用行重置为预设行
+  initPresetRows();
+
+  // 7. 清除所有校验状态
+  document.querySelectorAll('.input-error, .input-success, .negative-marker').forEach(el => clearValidation(el));
+
+  // 8. 根据默认还款方式更新相关行显示并重新计算
   togglePrincipalSchedule();
   toggleRepaymentDateRow();
-  document.querySelectorAll('input[type="checkbox"]').forEach(el => el.checked = el.classList.contains('single-check') ? el.defaultChecked : false);
-  // 费用行：清空数据
-  feeRows.length = 0;
-  document.getElementById('feesBody').innerHTML = '';
-  feeRowId = 0;
-  initPresetRows();
-  // 清除所有校验状态
-  document.querySelectorAll('.input-error, .input-success, .negative-marker').forEach(el => clearValidation(el));
-  // 重新计算
   recalcAll();
 }
 
