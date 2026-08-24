@@ -129,6 +129,7 @@
     .page-toolbar { display: none; }
     .paper { box-shadow: none; max-width: 100%; }
     .row-action { display: none; }
+    .no-print { display: none !important; }
     .validation-modal-overlay, .negative-marker { display: none !important; }
     .cell-input.input-error, .cell-select.input-error { background: transparent !important; box-shadow: none !important; }
   }
@@ -164,6 +165,7 @@
     <button onclick="exportPDF()">导出PDF</button>
     <button onclick="downloadOriginalTemplate()">导出Excel样表</button>
     <button onclick="resetForm()">重置表单</button>
+    <button onclick="fillTestData()" style="background:#faad14; border-color:#faad14; color:#fff;" title="临时功能：一键填充测试数据用于验证，上线前请移除">填充测试数据(临时)</button>
   </div>
 </div>
 
@@ -213,7 +215,8 @@
         <td class="label">还款方式</td>
         <td>
           <select class="cell-select" id="repayMethod" onchange="onRepayMethodChange()">
-            <option value="等额本息" selected>等额本息</option>
+            <option value="" selected disabled>请选择</option>
+            <option value="等额本息">等额本息</option>
             <option value="等额本金">等额本金</option>
             <option value="按月结息到期利随本清">按月结息到期利随本清</option>
             <option value="按月结息按计划表还本到期利随本清">按月结息按计划表还本到期利随本清</option>
@@ -222,8 +225,8 @@
         <td class="label">还款周期</td>
         <td><input class="cell-input" type="text" id="repayCycleText" placeholder="如：按月"></td>
       </tr>
-      <!-- 还本计划表（仅“按月结息按计划表还本到期利随本清”时显示） -->
-      <tr id="principalScheduleRow" style="display:none;">
+      <!-- 还本计划表（仅“按月结息按计划表还本到期利随本清”时显示；样表无此栏，打印/导出PDF时不输出） -->
+      <tr id="principalScheduleRow" class="no-print" style="display:none;">
         <td class="label">还本计划表</td>
         <td colspan="7" style="padding:6px;">
           <table class="schedule-table" style="width:100%; border-collapse:collapse; font-size:12px;">
@@ -240,15 +243,15 @@
           <span id="scheduleRemainHint" style="margin-left:12px; font-size:12px; color:#666;"></span>
         </td>
       </tr>
-      <!-- 还款日期（按月还款方式可选，用于计算分数期偏移） -->
-      <tr id="repaymentDateRow" style="display:none;">
+      <!-- 还款日期（非整数首期时填写，仅用于计算分数期偏移；样表无此栏，打印/导出PDF时不输出） -->
+      <tr id="repaymentDateRow" class="no-print" style="display:none;">
         <td class="label">还款日期</td>
         <td colspan="7" style="padding:6px;">
           <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
             <label style="display:flex; align-items:center; gap:4px; font-size:12px;">贷款起始日<input type="date" id="loanStartDate" class="cell-input" style="width:120px;" onchange="recalcAll()"></label>
             <label style="display:flex; align-items:center; gap:4px; font-size:12px;">首次还款日<input type="date" id="firstRepaymentDate" class="cell-input" style="width:120px;" onchange="recalcAll()"></label>
             <label style="display:flex; align-items:center; gap:4px; font-size:12px;">到期日<input type="date" id="maturityDate" class="cell-input" style="width:120px;" onchange="recalcAll()"></label>
-            <span id="dateHint" style="font-size:12px; color:#666;"></span>
+            <span id="dateHint" style="font-size:12px; color:#666;">仅用于计算，打印/导出不输出本行；整数周期贷款无需填写</span>
           </div>
         </td>
       </tr>
@@ -327,8 +330,8 @@
     </table>
 
     <div style="text-align:left; margin: 4px 0 8px;">
-      <button onclick="addFeeRow()" style="padding:4px 12px; font-size:12px; background:#52c41a; color:#fff; border:none; border-radius:3px; cursor:pointer;">+ 添加费用项</button>
-      <span style="margin-left: 16px; font-size: 11px; color: #666;">注：□实际承担年化率大于银行承担年化率（请在备注中标明）</span>
+      <button class="no-print" onclick="addFeeRow()" style="padding:4px 12px; font-size:12px; background:#52c41a; color:#fff; border:none; border-radius:3px; cursor:pointer;">+ 添加费用项</button>
+      <span style="margin-left: 16px; font-size: 11px; color: #666;">注：□实际承担年化率大于银行承担年化率（请在备注中标明）；银团贷款费用涉及安排费、代理费、参加费两种及以上时，请分别列明（填表说明9）</span>
     </div>
 
     <!-- ============== 三、企业综合融资成本合计 ============== -->
@@ -401,6 +404,7 @@ function defineValidationRules() {
   registerRule('#annualRate', { required: true, number: true, min: 0, decimal: 4, label: '贷款年化利率' });
   registerRule('#borrowerName', { required: true, maxLength: 50, label: '企业/借款人名称' });
   registerRule('#loanTermValue', { required: true, integer: true, min: 0, positive: true, max: 9999, label: '贷款期限' });
+  registerRule('#repayMethod', { required: true, label: '还款方式' });
   registerRule('#repayCycleText', { maxLength: 20, label: '还款周期' });
   registerRule('#guarOther', { maxLength: 50, label: '担保方式其他' });
 
@@ -653,6 +657,102 @@ function reportValidationErrors(result, title) {
   return false;
 }
 
+// 是否个人经营性贷款（小微企业主/个体工商户）
+function isPersonalLoan() {
+  return !!(document.getElementById('isInd1')?.checked || document.getElementById('isInd2')?.checked);
+}
+
+// 填表说明4：勾选"个人经营性贷款"后，企业类型和企业性质两栏不需填写——自动清空并禁用
+function togglePersonalLoanFields() {
+  const disabled = isPersonalLoan();
+  document.querySelectorAll('input[name="entType"], input[name="entNature"]').forEach(cb => {
+    if (disabled) cb.checked = false;
+    cb.disabled = disabled;
+  });
+}
+
+// ===================== 业务规则校验（跨字段，依据填表说明） =====================
+function validateBusinessRules() {
+  const errors = [];
+
+  // 填表说明4、5：非个人经营性贷款时，企业类型、企业性质至少各选一项
+  if (!isPersonalLoan()) {
+    if (!document.querySelector('input[name="entType"]:checked')) {
+      errors.push({ msg: '企业类型未勾选（大型/中型/小型/微型至少选一项；如为小微企业主或个体工商户贷款，请勾选"个人经营性贷款"栏）' });
+    }
+    if (!document.querySelector('input[name="entNature"]:checked')) {
+      errors.push({ msg: '企业性质未勾选（国有控股/非国有控股至少选一项；如为小微企业主或个体工商户贷款，请勾选"个人经营性贷款"栏）' });
+    }
+  }
+
+  // 担保方式：至少勾选一项，或在"其他"栏具体说明
+  const guarChecked = ['guar1', 'guar2', 'guar3', 'guar4'].some(id => document.getElementById(id)?.checked);
+  const guarOther = (document.getElementById('guarOther')?.value || '').trim();
+  if (!guarChecked && !guarOther) {
+    errors.push({ msg: '担保方式未填写（请勾选信用/保证/抵押/质押，或在"其他"栏具体说明）' });
+  }
+
+  // 费用行业务校验
+  const months = getMonths();
+  const seen = new Map();
+  feeRows.forEach(row => {
+    const tr = document.querySelector(`tr[data-fee-id="${row.id}"]`);
+    if (!tr || row.isInvolved !== '是') return;
+    const seq = row.seqNo ? `（序号 ${row.seqNo}）` : '';
+    const label = `费用行${seq}「${row.name || '未命名'}」`;
+    const total = row.totalAmount || 0;
+
+    if (total <= 0) {
+      errors.push({ msg: `${label}：已勾选"涉及该项费用"，请填写收费总额` });
+    } else {
+      // 表头要求：企业/银行/其他三项分担之和应等于收费总额
+      const sum = (row.enterpriseShare || 0) + (row.bankShare || 0) + (row.otherShare || 0);
+      if (Math.abs(sum - total) > 0.01) {
+        errors.push({ msg: `${label}：费用分担三项之和（${sum.toFixed(2)} 元）应等于收费总额（${total.toFixed(2)} 元）` });
+      }
+      if ((row.enterpriseShare || 0) - total > 0.01) {
+        errors.push({ msg: `${label}：企业实际承担金额不能超过收费总额` });
+      }
+    }
+
+    if (row.payMethod === '周期性支付') {
+      // 填表说明11：周期性支付费用需明确支付周期与每期金额
+      if (!['月', '季', '年'].includes(row.payCycle)) {
+        errors.push({ msg: `${label}：周期性支付费用需选择支付周期（月/季/年）` });
+      }
+      if (!(row.periodAmount > 0)) {
+        errors.push({ msg: `${label}：周期性支付费用需填写每期金额` });
+      }
+      // 填表说明11：支付周期期数 × 每期金额 = 企业实际承担总金额
+      if (['月', '季', '年'].includes(row.payCycle) && row.periodAmount > 0 && (row.enterpriseShare || 0) > 0) {
+        const cyclePerYear = { '月': 12, '季': 4, '年': 1 }[row.payCycle];
+        const times = Math.max(1, Math.round(months / 12 * cyclePerYear));
+        const expect = times * row.periodAmount;
+        if (Math.abs(expect - row.enterpriseShare) > 0.01) {
+          errors.push({ msg: `${label}：按支付周期共 ${times} 期 × 每期 ${row.periodAmount.toFixed(2)} 元 = ${expect.toFixed(2)} 元，与企业实际承担金额（${row.enterpriseShare.toFixed(2)} 元）不一致（填表说明11）` });
+        }
+      }
+    } else if (row.payMethod === '一次性支付') {
+      // 填表说明11：一次性支付费用的承担额度填在"每期金额"项下时，应与企业实际承担金额一致
+      if ((row.periodAmount || 0) > 0 && (row.enterpriseShare || 0) > 0 && Math.abs(row.periodAmount - row.enterpriseShare) > 0.01) {
+        errors.push({ msg: `${label}：一次性支付费用的每期金额（${row.periodAmount.toFixed(2)} 元）与企业实际承担金额（${row.enterpriseShare.toFixed(2)} 元）不一致` });
+      }
+    }
+
+    // 填表说明7：收费方、项目名称、收费机构完全相同的费用行视为重复列示
+    const nameKey = (row.name || '').trim();
+    if (nameKey) {
+      const key = `${row.party}|${nameKey}|${(row.institutionName || '').trim()}`;
+      if (seen.has(key)) {
+        errors.push({ msg: `${label}：与序号 ${seen.get(key)} 的费用行收费方、项目名称、收费机构完全相同，请勿重复列示（填表说明7）` });
+      } else {
+        seen.set(key, row.seqNo || '?');
+      }
+    }
+  });
+  return { valid: errors.length === 0, errors };
+}
+
 function canProceedWithAction(actionName) {
   // 先检查负值（用户本次核心要求）
   const neg = validateNonNegativeOnly();
@@ -660,6 +760,9 @@ function canProceedWithAction(actionName) {
   // 再检查全部规则
   const all = validateAll();
   if (!all.valid) return reportValidationErrors(all, `${actionName}失败：表单填写有误`);
+  // 最后检查跨字段业务规则（填表说明）
+  const biz = validateBusinessRules();
+  if (!biz.valid) return reportValidationErrors(biz, `${actionName}失败：业务规则校验未通过`);
   return true;
 }
 
@@ -737,11 +840,22 @@ function addMonths(date, n) {
 }
 
 // 生成分数期偏移：若填写了首次还款日，则按 30/360 计算每期偏移；否则使用整数偏移
+// 偏移以"单位周期"为刻度：月=30天，季=90天，年=360天；到期一次且期限≤1年时单位周期为整个期限
 function generateMonthlyOffsets(N) {
+  // 还款日期行隐藏（还款方式不适用）时，日期不参与计算
+  if (!isDateRowApplicable()) return null;
   const start = parseDateInput('loanStartDate');
   const first = parseDateInput('firstRepaymentDate');
   const maturity = parseDateInput('maturityDate');
   if (!start || !first) return null;
+  const cycle = getCycle();
+  let unitDays;
+  if (cycle === '按季') unitDays = 90;
+  else if (cycle === '按年') unitDays = 360;
+  else if (cycle === '到期一次') {
+    const months = getMonths();
+    unitDays = months <= 12 ? Math.max(days360(start, maturity || addMonths(start, months)), 1) : 360;
+  } else unitDays = 30;
   const offsets = [];
   for (let t = 1; t <= N; t++) {
     let payDate;
@@ -750,7 +864,7 @@ function generateMonthlyOffsets(N) {
     } else {
       payDate = addMonths(first, t - 1);
     }
-    offsets.push(days360(start, payDate) / 30);
+    offsets.push(days360(start, payDate) / unitDays);
   }
   return offsets;
 }
@@ -796,6 +910,8 @@ function generateSchedule(principal, annualRatePct, months, method, periodsPerYe
   const schedule = []; let remain = principal;
 
   const dateOffsets = generateMonthlyOffsets(N);
+  // 最后一期 offset 取实际期限（单位周期数，可带小数），避免非整数年/月期限被四舍五入取整
+  const lastOffset = months * periodsPerYearN / 12;
 
   if (method === '等额本息') {
     const C = rPeriod === 0 ? principal / N : principal * rPeriod * Math.pow(1 + rPeriod, N) / (Math.pow(1 + rPeriod, N) - 1);
@@ -804,18 +920,18 @@ function generateSchedule(principal, annualRatePct, months, method, periodsPerYe
     ps.push(tmp);
     for (let i = 0; i < N; i++) {
       const interest = remain * rPeriod; const pp = ps[i]; remain -= pp;
-      schedule.push({ period: i + 1, principal: pp, interest, total: pp + interest, offset: dateOffsets ? dateOffsets[i] : i + 1 });
+      schedule.push({ period: i + 1, principal: pp, interest, total: pp + interest, offset: dateOffsets ? dateOffsets[i] : (i === N - 1 ? lastOffset : i + 1) });
     }
   } else if (method === '等额本金') {
     const pp = principal / N;
     for (let i = 0; i < N; i++) {
       const interest = remain * rPeriod; const pay = (i === N - 1) ? remain : pp; remain -= pay;
-      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : i + 1 });
+      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : (i === N - 1 ? lastOffset : i + 1) });
     }
   } else if (method === '按月结息到期利随本清') {
     for (let i = 0; i < N; i++) {
       const interest = remain * rPeriod; const pay = (i === N - 1) ? principal : 0; remain -= pay;
-      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : i + 1 });
+      schedule.push({ period: i + 1, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : (i === N - 1 ? lastOffset : i + 1) });
     }
   } else if (method === '按月结息按计划表还本到期利随本清') {
     // 单位周期为月，每月付息；按计划表还本，到期结清剩余本金
@@ -827,7 +943,7 @@ function generateSchedule(principal, annualRatePct, months, method, periodsPerYe
       remain -= pay;
       if (period === N && remain > 0) { pay += remain; remain = 0; } // 到期结清剩余本金
       if (remain < 0) remain = 0;
-      schedule.push({ period, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : period });
+      schedule.push({ period, principal: pay, interest, total: pay + interest, offset: dateOffsets ? dateOffsets[i] : (period === N ? lastOffset : period) });
     }
   }
   return schedule;
@@ -854,14 +970,16 @@ function togglePrincipalSchedule() {
   }
 }
 
+// 还款日期行仅对以下具有规律还款日的还款方式有意义（非整数首期场景）
+const DATE_ROW_METHODS = ['等额本金', '等额本息', '按月结息到期利随本清'];
+function isDateRowApplicable() {
+  return DATE_ROW_METHODS.includes(document.getElementById('repayMethod')?.value || '');
+}
 function toggleRepaymentDateRow() {
-  // 临时隐藏“还款日期”行；后续如需按还款方式显示，恢复下方判断逻辑
+  // 还款日期行：按还款方式联动显示；仅用于计算，打印/导出不输出
   const row = document.getElementById('repaymentDateRow');
   if (!row) return;
-  row.style.display = 'none';
-  // const method = document.getElementById('repayMethod')?.value || '';
-  // const monthlyMethods = ['等额本金', '等额本息', '按月结息到期利随本清'];
-  // row.style.display = monthlyMethods.includes(method) ? 'table-row' : 'none';
+  row.style.display = isDateRowApplicable() ? 'table-row' : 'none';
 }
 
 function addPrincipalScheduleRow(period = '', amount = '') {
@@ -919,22 +1037,49 @@ function calcLoanIRR(principal, annualRatePct, method) {
   return periodRate * ppy;
 }
 
-// 计算单项费用年化率（按企业实际承担部分计算）
+// 计算单项费用年化率（现金流中的费用 = 企业实际承担金额）
 // 依据规则：Pjt 为第 t 次支付本金与第 j 项费用之和，不含贷款利息
-function calcFeeRate(principal, annualRatePct, method, totalFeeAmount, isUpfront) {
+// fee = { amount, payMethod, payCycle, periodAmount, timing }
+function calcFeeRate(principal, annualRatePct, method, fee) {
   const months = getMonths();
   const ppy = periodsPerYear();
   const schedule = generateSchedule(principal, annualRatePct, months, method, ppy);
   const cf = [{ offset: 0, amt: principal }];
-  if (isUpfront) cf[0].amt -= totalFeeAmount;
+  // 本金序列（与还款计划一致）
   for (const r of schedule) cf.push({ offset: r.offset, amt: -r.principal });
-  if (!isUpfront) {
-    // 分期支付：每期付费用
-    const periods = schedule.length;
-    for (let i = 0; i < periods; i++) cf[i + 1].amt -= (totalFeeAmount / periods);
+  if (fee.payMethod === '一次性支付') {
+    // 期初一次性费用：提款日一次性支付（offset=0）
+    cf[0].amt -= fee.amount;
+  } else {
+    // 周期性支付：按"支付周期"确定支付间隔 d（单位周期数）与支付次数
+    // 支付周期未填写时，默认与还款单位周期同步
+    const cyclePerYear = { '月': 12, '季': 4, '年': 1 }[fee.payCycle] || ppy;
+    const d = ppy / cyclePerYear;
+    const times = Math.max(1, Math.round(months / 12 * cyclePerYear));
+    // 每期金额优先取填写的"每期金额"，否则按企业承担总额均摊
+    const per = fee.periodAmount > 0 ? fee.periodAmount : fee.amount / times;
+    // 非整数首期的小数部分（费用周期与还款周期一致时，首/末期费用按周期实际长度折算，保持总额不变）
+    const f0 = (d === 1 && schedule.length > 0) ? schedule[0].offset - Math.floor(schedule[0].offset) : 0;
+    const lastIsTrimmed = f0 > 1e-9 && times === schedule.length &&
+      Math.abs(schedule[schedule.length - 1].offset - Math.round(schedule[schedule.length - 1].offset)) < 1e-9;
+    for (let i = 0; i < times; i++) {
+      // 期初支付：每期开始时预付下一期费用，首期在提款日（offset = 0, d, 2d, ...）
+      // 期末支付：每期结束时随还款一并支付；费用周期与还款周期一致时，与还款日同点贴现
+      let off, amt = per;
+      if (fee.timing === '期初支付') off = i * d;
+      else if (d === 1 && i < schedule.length) {
+        off = schedule[i].offset;
+        if (f0 > 1e-9) {
+          if (i === 0) amt = per * (1 + f0);            // 首期长度 1+f0 个周期
+          else if (i === times - 1 && lastIsTrimmed) amt = per * (1 - f0); // 末期长度 1-f0 个周期
+        }
+      }
+      else off = (i + 1) * d;
+      cf.push({ offset: off, amt: -amt });
+    }
   }
   const periodRate = solveIRR(toYearOffsets(cf));
-  // 单利年化
+  // 单利年化：年化率 = 单位周期费率 × 年内单位周期数
   return periodRate * ppy;
 }
 
@@ -956,6 +1101,7 @@ function defaultFeeRowData() {
     otherShare: 0,
     payMethod: '一次性支付',
     payCycle: '—',
+    payTiming: '期末支付',
     periodAmount: 0,
     note: ''
   };
@@ -1014,12 +1160,16 @@ function renderFeeRow(row) {
         <option value="季">季</option>
         <option value="年">年</option>
       </select>
+      <select class="cell-select" data-field="payTiming" onchange="onFeeInput(${row.id})" title="周期性费用的支付时点：期初支付=每期开始时预付（首期在提款日）；期末支付=每期结束时随还款支付">
+        <option value="期末支付">期末付</option>
+        <option value="期初支付">期初付</option>
+      </select>
     </td>
     <td><input class="cell-input right" data-field="periodAmount" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
     <td><span data-fee-rate style="font-weight:600;">—</span></td>
     <td><input class="cell-input left" data-field="note" type="text" placeholder=""></td>
     <td style="text-align:center; padding:2px;">
-      <button class="del" onclick="deleteFeeRow(${row.id})" style="padding:2px 6px; font-size:11px; background:#ff4d4f; color:#fff; border:none; border-radius:2px; cursor:pointer;">删</button>
+      <button class="del no-print" onclick="deleteFeeRow(${row.id})" style="padding:2px 6px; font-size:11px; background:#ff4d4f; color:#fff; border:none; border-radius:2px; cursor:pointer;">删</button>
     </td>
   `;
   // 设置初始值
@@ -1034,6 +1184,7 @@ function renderFeeRow(row) {
   tr.querySelector(`[data-field="otherShare"]`).value = row.otherShare || '';
   tr.querySelector(`[data-field="payMethod"]`).value = row.payMethod;
   tr.querySelector(`[data-field="payCycle"]`).value = row.payCycle;
+  tr.querySelector(`[data-field="payTiming"]`).value = row.payTiming || '期末支付';
   tr.querySelector(`[data-field="periodAmount"]`).value = row.periodAmount || '';
   tr.querySelector(`[data-field="note"]`).value = row.note;
   tbody.appendChild(tr);
@@ -1065,6 +1216,7 @@ function readFeeRowFromDOM(tr) {
     otherShare: get('otherShare'),
     payMethod: get('payMethod'),
     payCycle: get('payCycle'),
+    payTiming: get('payTiming'),
     periodAmount: get('periodAmount'),
     note: get('note')
   };
@@ -1085,6 +1237,15 @@ function recalcAll() {
   const annualRate = parseFloat(document.getElementById('annualRate').value) || 0;
   const method = document.getElementById('repayMethod').value;
 
+  // 未选择还款方式或未填本金时，结果区显示"—"，不进行计算
+  if (!method || principal <= 0) {
+    document.querySelectorAll('[data-fee-rate]').forEach(s => { s.textContent = '—'; });
+    document.getElementById('totalRate').textContent = '—';
+    document.getElementById('bankPortion').textContent = '—';
+    updateScheduleHint();
+    return;
+  }
+
   // 1. 贷款利息年化：使用输入的名义年化利率（规则要求贷款年化利率按央行公告执行，
   //    标准还款方式下与 IRR 结果一致；为在分数期场景下仍与示例保持一致，直接使用输入利率）
   const loanAnnualized = annualRate;
@@ -1100,22 +1261,31 @@ function recalcAll() {
       rateSpan.textContent = '—';
       return;
     }
-    const enterpriseRatio = row.totalAmount > 0 ? (row.enterpriseShare || 0) / row.totalAmount : 0;
-    if (enterpriseRatio <= 0) {
+    // 费用现金流按"企业实际承担金额"构造（样表要求按企业实际承担计算）
+    // 填表说明11：一次性支付费用的承担额度可直接填在"每期金额"项下，此处做回退兼容
+    let enterpriseAmount = row.enterpriseShare || 0;
+    if (enterpriseAmount <= 0 && row.payMethod === '一次性支付' && (row.periodAmount || 0) > 0) {
+      enterpriseAmount = row.periodAmount;
+    }
+    if (enterpriseAmount <= 0) {
       rateSpan.textContent = '0.00%';
       return;
     }
     let feeRate = 0;
     try {
-      feeRate = calcFeeRate(principal, annualRate, method, row.totalAmount, row.payMethod === '一次性支付');
+      feeRate = calcFeeRate(principal, annualRate, method, {
+        amount: enterpriseAmount,
+        payMethod: row.payMethod,
+        payCycle: row.payCycle,
+        periodAmount: row.periodAmount,
+        timing: row.payTiming
+      });
     } catch (e) { feeRate = 0; }
-    // 该项费用中"企业实际承担"部分对应的年化率（费用本身年化率 * 企业承担比例）
-    const actualRate = feeRate * enterpriseRatio;
-    rateSpan.textContent = (actualRate * 100).toFixed(2) + '%';
-    totalFeeRate += actualRate;
+    rateSpan.textContent = (feeRate * 100).toFixed(2) + '%';
+    totalFeeRate += feeRate;
     // 银行收取部分 = 收费方为"银行"的项
     if (row.party && row.party.startsWith('银行')) {
-      bankPortionRate += actualRate;
+      bankPortionRate += feeRate;
     }
   });
 
@@ -1160,9 +1330,9 @@ function resetForm() {
   document.getElementById('signDate').value = today;
   document.getElementById('loanStartDate').value = today;
 
-  // 3. 恢复下拉框默认值
+  // 3. 恢复下拉框默认值（还款方式恢复为"请选择"占位状态）
   document.getElementById('loanTermUnit').value = '月';
-  document.getElementById('repayMethod').value = '等额本息';
+  document.getElementById('repayMethod').value = '';
 
   // 4. 清空还本计划表及还款日期
   document.getElementById('principalScheduleBody').innerHTML = '';
@@ -1176,6 +1346,7 @@ function resetForm() {
 
   // 6. 费用行重置为预设行
   initPresetRows();
+  togglePersonalLoanFields();
 
   // 7. 清除所有校验状态
   document.querySelectorAll('.input-error, .input-success, .negative-marker').forEach(el => clearValidation(el));
@@ -1186,14 +1357,51 @@ function resetForm() {
   recalcAll();
 }
 
+// ===================== 临时：填充测试数据 =====================
+// 场景：100万、4.75%、24个月、等额本金、非整数首期（对应央行文档例4/例10）
+// 预期结果：担保费≈0.92%、保险费≈4.35%、综合合计≈10.02%、银行收取部分=4.75%
+function fillTestData() {
+  document.getElementById('bankName').value = '莱州农商银行';
+  document.getElementById('borrowerName').value = '测试企业有限公司';
+  document.getElementById('loanPrincipal').value = '100';
+  document.getElementById('annualRate').value = '4.75';
+  document.getElementById('loanTermValue').value = '24';
+  document.getElementById('loanTermUnit').value = '月';
+  document.getElementById('repayMethod').value = '等额本金';
+  document.getElementById('repayCycleText').value = '按月';
+  document.getElementById('guar2').checked = true;
+  document.querySelector('input[name="entType"][value="小型"]').checked = true;
+  document.querySelector('input[name="entNature"][value="非国有控股"]').checked = true;
+  document.getElementById('isInd1').checked = false;
+  document.getElementById('isInd2').checked = false;
+  document.getElementById('loanStartDate').value = '2024-01-01';
+  document.getElementById('firstRepaymentDate').value = '2024-02-20';
+  document.getElementById('maturityDate').value = '2026-01-01';
+  document.getElementById('principalScheduleBody').innerHTML = '';
+
+  // 费用行：重建为两行典型费用（一次性 + 周期性）
+  feeRowId = 0;
+  feeRows.length = 0;
+  document.getElementById('feesBody').innerHTML = '';
+  addFeeRow({ party: '第三方（企业填写）', seqNo: '1', name: '担保费', isInvolved: '是', institutionName: '测试融资担保有限公司', totalAmount: 10000, enterpriseShare: 10000, bankShare: 0, otherShare: 0, payMethod: '一次性支付', payCycle: '—', payTiming: '期末支付', periodAmount: 0, note: '提款日一次性支付' });
+  addFeeRow({ party: '第三方（企业填写）', seqNo: '2', name: '保险费', isInvolved: '是', institutionName: '测试保险有限公司', totalAmount: 48000, enterpriseShare: 48000, bankShare: 0, otherShare: 0, payMethod: '周期性支付', payCycle: '月', payTiming: '期初支付', periodAmount: 2000, note: '每月1日预付下月保费' });
+
+  togglePrincipalSchedule();
+  toggleRepaymentDateRow();
+  togglePersonalLoanFields();
+  recalcAll();
+  alert('测试数据已填充。\n\n预期结果：\n· 担保费年化率 ≈ 0.92%\n· 保险费年化率 ≈ 4.35%\n· 综合融资成本合计 ≈ 10.02%\n· 其中银行收取部分 = 4.75%');
+}
+
 // ===================== PDF 导出 =====================
 async function exportPDF() {
   if (!canProceedWithAction('导出PDF')) return;
 
   const paper = document.getElementById('paper');
-  // 临时展开为完整内容用于截图
+  // 截图前临时隐藏不打印元素（display:none 不留空白，导出后恢复原值）
   const btns = paper.parentElement.querySelectorAll('.no-print');
-  btns.forEach(b => b.style.visibility = 'hidden');
+  const prevDisplays = new Map();
+  btns.forEach(b => { prevDisplays.set(b, b.style.display); b.style.display = 'none'; });
 
   try {
     const canvas = await html2canvas(paper, {
@@ -1233,7 +1441,7 @@ async function exportPDF() {
     console.error('PDF 导出失败：', e);
     alert('PDF 导出失败：' + e.message);
   } finally {
-    btns.forEach(b => b.style.visibility = '');
+    btns.forEach(b => { b.style.display = prevDisplays.get(b) || ''; });
   }
 }
 
@@ -1264,8 +1472,15 @@ document.addEventListener('DOMContentLoaded', () => {
   initPresetRows();
   togglePrincipalSchedule();
   toggleRepaymentDateRow();
+  togglePersonalLoanFields();
   recalcAll();
   bindValidationEvents();
+});
+
+// 填表说明4联动：勾选/取消"个人经营性贷款"时禁用或恢复企业类型、企业性质栏
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t && (t.id === 'isInd1' || t.id === 'isInd2')) togglePersonalLoanFields();
 });
 
 // 单选 checkbox 行为：同 name 的 .single-check 组内只能选中一个
