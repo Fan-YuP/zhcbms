@@ -1140,7 +1140,7 @@ function renderFeeRow(row) {
     <td><input class="cell-input" data-field="seqNo" type="text"></td>
     <td><input class="cell-input left" data-field="name" type="text" placeholder="如：担保费、保险费..."></td>
     <td><input type="checkbox" class="single-check" data-field="isInvolved" value="是" name="involved-${row.id}"></td>
-    <td><input type="checkbox" class="single-check" data-field="isInvolved" value="否" name="involved-${row.id}" checked></td>
+    <td><input type="checkbox" class="single-check" data-field="isInvolved" value="否" name="involved-${row.id}"></td>
     <td><input class="cell-input left" data-field="institutionName" type="text" placeholder="收费机构名称"></td>
     <td><input class="cell-input right" data-field="totalAmount" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
     <td><input class="cell-input right" data-field="enterpriseShare" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
@@ -1358,39 +1358,113 @@ function resetForm() {
 }
 
 // ===================== 临时：填充测试数据 =====================
-// 场景：100万、4.75%、24个月、等额本金、非整数首期（对应央行文档例4/例10）
-// 预期结果：担保费≈0.92%、保险费≈4.35%、综合合计≈10.02%、银行收取部分=4.75%
+// 每次点击生成一组随机但内部自洽的测试数据（本金/利率/期限/还款方式/日期/费用均为随机）
 function fillTestData() {
-  document.getElementById('bankName').value = '莱州农商银行';
-  document.getElementById('borrowerName').value = '测试企业有限公司';
-  document.getElementById('loanPrincipal').value = '100';
-  document.getElementById('annualRate').value = '4.75';
-  document.getElementById('loanTermValue').value = '24';
+  const rnd = (min, max) => Math.random() * (max - min) + min;
+  const rndInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const pick = arr => arr[rndInt(0, arr.length - 1)];
+  const r2 = x => Math.round(x * 100) / 100;
+  const fmtDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const addMonths = (d, m) => {
+    const day = d.getDate();
+    const t = new Date(d.getFullYear(), d.getMonth() + m, 1);
+    const lastDay = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+    t.setDate(Math.min(day, lastDay));
+    return t;
+  };
+
+  // —— 基础信息（随机） ——
+  const principalWan = rndInt(50, 2000);                        // 50~2000 万元
+  const principalYuan = principalWan * 10000;
+  const annualRate = r2(rnd(3, 8));                             // 3%~8%
+  const termMonths = rndInt(6, 60);                             // 6~60 个月
+  const repayMethod = pick(['等额本息', '等额本金', '按月结息到期利随本清']);
+
+  const startDate = new Date(rndInt(2023, 2025), rndInt(0, 11), rndInt(1, 28));
+  const maturityDate = addMonths(startDate, termMonths);
+  const firstRepaymentDate = addMonths(startDate, 1);
+  firstRepaymentDate.setDate(firstRepaymentDate.getDate() + rndInt(0, 15)); // 首期可能非整月
+
+  document.getElementById('bankName').value = pick(['莱州农商银行', '烟台银行', '恒丰银行']);
+  document.getElementById('borrowerName').value = pick(['测试企业', '示例制造', '样例商贸']) + rndInt(1, 999) + '有限公司';
+  document.getElementById('loanPrincipal').value = principalWan;
+  document.getElementById('annualRate').value = annualRate;
+  document.getElementById('loanTermValue').value = termMonths;
   document.getElementById('loanTermUnit').value = '月';
-  document.getElementById('repayMethod').value = '等额本金';
+  document.getElementById('repayMethod').value = repayMethod;
   document.getElementById('repayCycleText').value = '按月';
-  document.getElementById('guar2').checked = true;
-  document.querySelector('input[name="entType"][value="小型"]').checked = true;
-  document.querySelector('input[name="entNature"][value="非国有控股"]').checked = true;
+
+  // 担保方式：先清空再随机勾选 1~2 项
+  ['guar1', 'guar2', 'guar3', 'guar4'].forEach(id => { document.getElementById(id).checked = false; });
+  document.getElementById(pick(['guar1', 'guar2', 'guar3', 'guar4'])).checked = true;
+  if (Math.random() < 0.4) document.getElementById(pick(['guar2', 'guar3', 'guar4'])).checked = true;
+  document.getElementById('guarOther').value = '';
+
+  // 企业类型/性质：先清空同组再勾选，避免程序化勾选导致多选
+  document.querySelectorAll('input[name="entType"].single-check, input[name="entNature"].single-check')
+    .forEach(cb => { cb.checked = false; });
+  document.querySelector(`input[name="entType"][value="${pick(['大型', '中型', '小型', '微型'])}"]`).checked = true;
+  document.querySelector(`input[name="entNature"][value="${pick(['国有控股', '非国有控股'])}"]`).checked = true;
   document.getElementById('isInd1').checked = false;
   document.getElementById('isInd2').checked = false;
-  document.getElementById('loanStartDate').value = '2024-01-01';
-  document.getElementById('firstRepaymentDate').value = '2024-02-20';
-  document.getElementById('maturityDate').value = '2026-01-01';
+
+  document.getElementById('loanStartDate').value = fmtDate(startDate);
+  document.getElementById('firstRepaymentDate').value = fmtDate(firstRepaymentDate);
+  document.getElementById('maturityDate').value = fmtDate(maturityDate);
   document.getElementById('principalScheduleBody').innerHTML = '';
 
-  // 费用行：重建为两行典型费用（一次性 + 周期性）
+  // —— 费用行：随机抽取 1~3 项不重复费用 ——
+  const feePool = [
+    { name: '担保费', method: '一次性支付' },
+    { name: '评估费', method: '一次性支付' },
+    { name: '公证费', method: '一次性支付' },
+    { name: '保险费', method: '周期性支付', cycle: '月', timing: '期初支付' },
+    { name: '咨询服务费', method: '周期性支付', cycle: '季', timing: '期末支付' },
+    { name: '账户管理费', method: '周期性支付', cycle: '年', timing: '期初支付' },
+  ];
+  const picked = feePool.slice().sort(() => Math.random() - 0.5).slice(0, rndInt(1, 3));
+
   feeRowId = 0;
   feeRows.length = 0;
   document.getElementById('feesBody').innerHTML = '';
-  addFeeRow({ party: '第三方（企业填写）', seqNo: '1', name: '担保费', isInvolved: '是', institutionName: '测试融资担保有限公司', totalAmount: 10000, enterpriseShare: 10000, bankShare: 0, otherShare: 0, payMethod: '一次性支付', payCycle: '—', payTiming: '期末支付', periodAmount: 0, note: '提款日一次性支付' });
-  addFeeRow({ party: '第三方（企业填写）', seqNo: '2', name: '保险费', isInvolved: '是', institutionName: '测试保险有限公司', totalAmount: 48000, enterpriseShare: 48000, bankShare: 0, otherShare: 0, payMethod: '周期性支付', payCycle: '月', payTiming: '期初支付', periodAmount: 2000, note: '每月1日预付下月保费' });
+
+  picked.forEach((tpl, i) => {
+    let totalAmount, periodAmount = 0, payCycle = '—', payTiming = '期末支付';
+    if (tpl.method === '一次性支付') {
+      totalAmount = Math.round(principalYuan * rnd(0.003, 0.02) / 100) * 100;   // 本金的 0.3%~2%
+    } else {
+      payCycle = tpl.cycle;
+      payTiming = tpl.timing;
+      const cycleMonths = { '月': 1, '季': 3, '年': 12 }[payCycle];
+      const periods = Math.max(1, Math.floor(termMonths / cycleMonths));
+      periodAmount = Math.round(principalYuan * rnd(0.0005, 0.002) / 100) * 100; // 每期约本金的 0.05%~0.2%
+      totalAmount = periodAmount * periods;
+    }
+    addFeeRow({
+      party: '第三方（企业填写）',
+      seqNo: String(i + 1),
+      name: tpl.name,
+      isInvolved: '是',
+      institutionName: tpl.name + '测试机构有限公司',
+      totalAmount: totalAmount,
+      enterpriseShare: totalAmount,
+      bankShare: 0,
+      otherShare: 0,
+      payMethod: tpl.method,
+      payCycle: payCycle,
+      payTiming: payTiming,
+      periodAmount: periodAmount,
+      note: ''
+    });
+  });
 
   togglePrincipalSchedule();
   toggleRepaymentDateRow();
   togglePersonalLoanFields();
   recalcAll();
-  alert('测试数据已填充。\n\n预期结果：\n· 担保费年化率 ≈ 0.92%\n· 保险费年化率 ≈ 4.35%\n· 综合融资成本合计 ≈ 10.02%\n· 其中银行收取部分 = 4.75%');
+
+  const totalRateText = document.getElementById('totalRate').textContent;
+  alert(`随机测试数据已填充：\n· 本金 ${principalWan} 万元，年利率 ${annualRate}%\n· 期限 ${termMonths} 个月，还款方式：${repayMethod}\n· 起止 ${fmtDate(startDate)} ~ ${fmtDate(maturityDate)}，首次还款 ${fmtDate(firstRepaymentDate)}\n· 费用 ${picked.length} 项：${picked.map(t => t.name).join('、')}\n\n当前综合融资成本合计：${totalRateText}（详见页面计算结果）`);
 }
 
 // ===================== PDF 导出 =====================
