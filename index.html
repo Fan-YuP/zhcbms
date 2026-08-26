@@ -45,6 +45,13 @@
   .cell-select { width: 100%; border: none; background: transparent; font-size: 11px; outline: none; padding: 1px 2px; text-align: center; text-align-last: center; font-family: inherit; }
   .cell-select:focus { background: #fff8e1; }
 
+  /* 第二部分费用表：压缩单元格内边距、隐藏数字输入框箭头，让内容尽量显示全 */
+  #feesTable th, #feesTable td { padding: 2px 2px; }
+  #feesTable .cell-select { padding: 1px 0; }
+  #feesTable input[type="number"]::-webkit-outer-spin-button,
+  #feesTable input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  #feesTable input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
   /* 复选框组 */
   .checkbox-group { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-items: center; font-size: 11px; }
   .checkbox-group label { display: inline-flex; align-items: center; gap: 1px; cursor: pointer; }
@@ -287,26 +294,26 @@
     <div class="section-title" style="margin-top:8px;">二、企业贷款其他融资成本</div>
     <table class="form-table" id="feesTable">
       <colgroup>
-        <col style="width: 5%">
-        <col style="width: 4%">
-        <col style="width: 10%">
+        <col style="width: 10.5%">
         <col style="width: 3%">
-        <col style="width: 3%">
-        <col style="width: 9%">
-        <col style="width: 7%">
-        <col style="width: 7%">
-        <col style="width: 7%">
-        <col style="width: 7%">
-        <col style="width: 7%">
-        <col style="width: 6%">
-        <col style="width: 7%">
         <col style="width: 8%">
-        <col style="width: 7%">
+        <col style="width: 2.5%">
+        <col style="width: 2.5%">
+        <col style="width: 8.5%">
+        <col style="width: 8%">
+        <col style="width: 8%">
+        <col style="width: 8%">
+        <col style="width: 8%">
+        <col style="width: 6.5%">
+        <col style="width: 5.5%">
+        <col style="width: 6.5%">
+        <col style="width: 6%">
+        <col style="width: 5.5%">
         <col style="width: 3%">
       </colgroup>
       <thead>
         <tr>
-          <th rowspan="2">收费方</th>
+          <th rowspan="2">收取方</th>
           <th rowspan="2">项目序号</th>
           <th rowspan="2">成本项目名称</th>
           <th colspan="2">是否涉及该项费用<br><span style="font-weight:normal; font-size:10px;">（请在相应栏中打√）</span></th>
@@ -316,7 +323,7 @@
           <th colspan="3">企业实际支付费用方式<br><span style="font-weight:normal; font-size:10px;">（支付方式包括一次性支付、周期性支付和其他方式具体列明）</span></th>
           <th rowspan="2">融资成本年化率<br><span style="font-weight:normal; font-size:10px;">（按企业实际承担计算，%）</span></th>
           <th rowspan="2">备注</th>
-          <th rowspan="2" style="background:#fafafa;"></th>
+          <th rowspan="2" class="no-print" style="background:#fafafa;"></th>
         </tr>
         <tr>
           <th>是</th><th>否</th>
@@ -329,7 +336,7 @@
       </tbody>
     </table>
 
-    <div style="text-align:left; margin: 4px 0 8px;">
+    <div class="no-print" style="text-align:left; margin: 4px 0 8px;">
       <button class="no-print" onclick="addFeeRow()" style="padding:4px 12px; font-size:12px; background:#52c41a; color:#fff; border:none; border-radius:3px; cursor:pointer;">+ 添加费用项</button>
       <span style="margin-left: 16px; font-size: 11px; color: #666;">注：□实际承担年化率大于银行承担年化率（请在备注中标明）；银团贷款费用涉及安排费、代理费、参加费两种及以上时，请分别列明（填表说明9）</span>
     </div>
@@ -1168,7 +1175,7 @@ function renderFeeRow(row) {
     <td><input class="cell-input right" data-field="periodAmount" type="number" step="0.01" placeholder="0.00" oninput="onFeeInput(${row.id})"></td>
     <td><span data-fee-rate style="font-weight:600;">—</span></td>
     <td><input class="cell-input left" data-field="note" type="text" placeholder=""></td>
-    <td style="text-align:center; padding:2px;">
+    <td class="no-print" style="text-align:center; padding:2px;">
       <button class="del no-print" onclick="deleteFeeRow(${row.id})" style="padding:2px 6px; font-size:11px; background:#ff4d4f; color:#fff; border:none; border-radius:2px; cursor:pointer;">删</button>
     </td>
   `;
@@ -1510,7 +1517,14 @@ async function exportPDF() {
         pdf.addImage(sliceData, 'JPEG', 5, 5, imgW, (sliceH / canvas.width) * imgW);
       }
     }
-    pdf.save('企业贷款综合融资成本清单.pdf');
+    // 文件命名：银行名称_企业名称_时间_融资成本清单.pdf
+    const sanitize = s => (s || '').trim().replace(/[\\/:*?"<>|\s]+/g, '');
+    const bank = sanitize(document.getElementById('bankName').value) || '未知银行';
+    const borrower = sanitize(document.getElementById('borrowerName').value) || '未知企业';
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const timeStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+    pdf.save(`${bank}_${borrower}_${timeStr}_融资成本清单.pdf`);
   } catch (e) {
     console.error('PDF 导出失败：', e);
     alert('PDF 导出失败：' + e.message);
