@@ -52,6 +52,13 @@
   #feesTable input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   #feesTable input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 
+  /* 表格单元格文本自动换行：长单词/URL/长数字串在宽度受限时断开换行，兼容主流浏览器 */
+  .form-table th, .form-table td { overflow-wrap: anywhere; word-break: break-word; }
+  .form-table td { word-break: break-all; }
+
+  /* 打印/导出PDF时替换表单控件的纯文本节点（input/select 本身无法换行） */
+  .print-value { display: block; width: 100%; font-size: 11px; font-family: inherit; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; }
+
   /* 复选框组 */
   .checkbox-group { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; align-items: center; font-size: 11px; }
   .checkbox-group label { display: inline-flex; align-items: center; gap: 1px; cursor: pointer; }
@@ -1474,6 +1481,36 @@ function fillTestData() {
   alert(`随机测试数据已填充：\n· 本金 ${principalWan} 万元，年利率 ${annualRate}%\n· 期限 ${termMonths} 个月，还款方式：${repayMethod}\n· 起止 ${fmtDate(startDate)} ~ ${fmtDate(maturityDate)}，首次还款 ${fmtDate(firstRepaymentDate)}\n· 费用 ${picked.length} 项：${picked.map(t => t.name).join('、')}\n\n当前综合融资成本合计：${totalRateText}（详见页面计算结果）`);
 }
 
+// ===================== 打印视图：控件换行处理 =====================
+// input/select 单行控件无法换行，打印/导出PDF前临时替换为可自动换行的纯文本节点，结束后还原
+function swapControlsForPrint(root) {
+  const swaps = [];
+  root.querySelectorAll('input[type="text"], input[type="number"], input[type="date"], select').forEach(el => {
+    const prevDisplay = el.style.display;
+    const span = document.createElement('span');
+    span.className = 'print-value';
+    span.textContent = el.tagName === 'SELECT'
+      ? (el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : '')
+      : el.value;
+    span.style.textAlign = getComputedStyle(el).textAlign || 'center';
+    el.style.display = 'none';
+    el.parentNode.insertBefore(span, el.nextSibling);
+    swaps.push({ el, span, prevDisplay });
+  });
+  return swaps;
+}
+function restorePrintSwaps(swaps) {
+  swaps.forEach(({ el, span, prevDisplay }) => { el.style.display = prevDisplay; span.remove(); });
+}
+// 浏览器打印（Ctrl+P / 打印按钮）：打印前替换、打印后还原
+let printSwapsLive = null;
+window.addEventListener('beforeprint', () => {
+  printSwapsLive = swapControlsForPrint(document.getElementById('paper'));
+});
+window.addEventListener('afterprint', () => {
+  if (printSwapsLive) { restorePrintSwaps(printSwapsLive); printSwapsLive = null; }
+});
+
 // ===================== PDF 导出 =====================
 async function exportPDF() {
   if (!canProceedWithAction('导出PDF')) return;
@@ -1483,6 +1520,8 @@ async function exportPDF() {
   const btns = paper.parentElement.querySelectorAll('.no-print');
   const prevDisplays = new Map();
   btns.forEach(b => { prevDisplays.set(b, b.style.display); b.style.display = 'none'; });
+  // 截图前把控件替换为可换行的纯文本节点，避免长文本被截断
+  const printSwaps = swapControlsForPrint(paper);
 
   try {
     const canvas = await html2canvas(paper, {
@@ -1529,6 +1568,7 @@ async function exportPDF() {
     console.error('PDF 导出失败：', e);
     alert('PDF 导出失败：' + e.message);
   } finally {
+    restorePrintSwaps(printSwaps);
     btns.forEach(b => { b.style.display = prevDisplays.get(b) || ''; });
   }
 }
