@@ -175,7 +175,7 @@
     <div class="title-line2">企业贷款综合成本清单</div>
   </div>
   <div class="actions">
-    <button onclick="printWithValidation()">打印（生成PDF）</button>
+    <button onclick="printWithValidation()">打印</button>
     <button onclick="exportPDF()">导出PDF</button>
     <button onclick="downloadOriginalTemplate()">导出Excel样表</button>
     <button onclick="resetForm()">重置表单</button>
@@ -781,10 +781,8 @@ function canProceedWithAction(actionName) {
 }
 
 function printWithValidation() {
-  // 说明：浏览器原生 window.print() 在 Chrome 中会强制附带页眉页脚/页码/URL，
-  // 且不同浏览器表现不一致，网页代码无法控制。为保证跨浏览器统一且无页眉页脚，
-  // 此处直接复用 PDF 导出逻辑，生成与"导出PDF"一致的 PDF 并通过浏览器下载。
-  return exportPDF();
+  if (!canProceedWithAction('打印')) return;
+  window.print();
 }
 
 // ===================== 工具函数 =====================
